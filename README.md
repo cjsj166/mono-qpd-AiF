@@ -1,3 +1,11 @@
+## mono-qpd Environment setup
+```
+conda create --name mono-qpd python=3.12.4
+conda activate mono-qpd
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+pip install gradio_imageslider gradio==4.29.0 matplotlib opencv-python
+```
+
 # Disparity Estimation Using a Quad-Pixel Sensor
 [Project Page](http://www.ok.sc.e.titech.ac.jp/res/QP/index.html)
 
@@ -63,4 +71,5 @@ This project uses the following open-source projects and data. Please consider c
 * [RAFT-stereo (Lipson et al., 3DV 2021)](https://github.com/princeton-vl/RAFT-Stereo)
 * [Abuolaim et al., ICCV 2021](https://github.com/Abdullah-Abuolaim/recurrent-defocus-deblurring-synth-dual-pixel)
 * [Hypersim (Roberts et al., ICCV 2021)](https://github.com/apple/ml-hypersim)
+
 
