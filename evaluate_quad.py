@@ -55,6 +55,139 @@ def show_colormap(value, path, depth_range, dpi, figsize=(12, 10)):
     ##close plot
     plt.clf()
 
+def save_image(value, path, cmap='jet', vmin=None, vmax=None):
+    """
+    Save an image with matplotlib's imsave, using specified colormap and value range.
+    """
+    folder = os.path.dirname(path)
+    os.makedirs(folder, exist_ok=True)
+    plt.imsave(path, value, cmap=cmap, vmin=vmin, vmax=vmax)
+
+
+@torch.no_grad()
+def validate_Real_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
+    """ Peform validation using the FlyingThings3D (TEST) split """
+    model.eval()
+    aug_params = {}
+    
+    if path == '':
+        val_dataset = datasets.Real_QPD(aug_params, image_set=image_set, no_gt_disp=True)
+    else:
+        val_dataset = datasets.Real_QPD(aug_params, image_set=image_set, no_gt_disp=True, root=path)
+
+    path = os.path.basename(os.path.dirname(path))
+    
+    log_dir = 'res'
+    dp_dir = os.path.join(log_dir, path, 'dp_est')
+    os.makedirs(dp_dir, exist_ok=True)
+
+    if val_num==None:
+        val_num = len(val_dataset)
+
+    for val_id in tqdm(range(val_num)):
+        paths, image1, image2 = val_dataset[val_id]
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        ## 4 LRTB,  2 LR
+        if input_image_num == 4:
+            image2 = image2.squeeze()
+        else:
+            image2 = image2.squeeze()[:2]
+
+        padder = InputPadder(image1.shape, divis_by=32)
+        image1, image2 = padder.pad(image1, image2)
+
+        with autocast(enabled=mixed_prec):
+            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+        flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
+        
+        if flow_pr.shape[0]==2:
+            flow_pr = flow_pr[1]-flow_pr[0]
+
+        if save_result and val_id%val_save_skip==0:
+            if not os.path.exists('result/predictions/'+path+'/'):
+                os.makedirs('result/predictions/'+path+'/')
+            
+            pth_lists = paths[0].split('/')[-3:]
+            pth = '/'.join(pth_lists)
+            pth_lists[-1] = pth_lists[-1].replace('.png', '_-10_3_range.png')
+            fixed_range_result_pth = '/'.join(pth_lists)
+
+            pth = pth.replace('.png', '.npy')
+
+            os.makedirs(os.path.join(dp_dir, os.path.dirname(pth)), exist_ok=True)
+            
+            flow_prn = flow_pr.cpu().numpy().squeeze()
+
+            np.save(os.path.join(dp_dir, pth), flow_prn * 2)
+
+    return None
+
+
+@torch.no_grad()
+def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
+    """ Peform validation using the FlyingThings3D (TEST) split """
+    model.eval()
+    aug_params = {}
+    
+    if path == '':
+        val_dataset = datasets.MDD(aug_params, image_set=image_set)
+    else:
+        val_dataset = datasets.MDD(aug_params, image_set=image_set, root=path)
+
+    path = os.path.basename(os.path.basename(path))
+    
+    log_dir = 'res'
+    dp_dir = os.path.join(log_dir, path, 'dp_est')
+    os.makedirs(dp_dir, exist_ok=True)
+
+    if val_num==None:
+        val_num = len(val_dataset)
+
+    for val_id in tqdm(range(val_num)):
+        paths, image1, image2, flow_gt = val_dataset[val_id]
+        
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        ## 4 LRTB,  2 LR
+        if input_image_num == 2:
+            image2 = image2.squeeze()
+        else:
+            image2 = image2.squeeze()[:2]
+
+        padder = InputPadder(image1.shape, divis_by=32)
+        image1, image2 = padder.pad(image1, image2)
+
+        with autocast(enabled=mixed_prec):
+            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+        flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
+        
+        if flow_pr.shape[0]==2:
+            flow_pr = flow_pr[0]-flow_pr[1]
+
+        if save_result and val_id%val_save_skip==0:
+            if not os.path.exists('result/predictions/'+path+'/'):
+                os.makedirs('result/predictions/'+path+'/')
+            
+            pth_lists = paths[0].split('/')[-3:]
+            pth = '/'.join(pth_lists)
+            # pth_lists[-1] = pth_lists[-1].replace('.jpg', '_-10_3_range.png')
+            # fixed_range_result_pth = '/'.join(pth_lists)
+
+            pth = pth.replace('.jpg', '.npy')
+
+            os.makedirs(os.path.join(dp_dir, os.path.dirname(pth)), exist_ok=True)
+            
+            flow_prn = flow_pr.cpu().numpy().squeeze()
+            flow_prn = cv2.resize(flow_prn, (5180, 2940),interpolation=cv2.INTER_LINEAR)
+
+            np.save(os.path.join(dp_dir, pth), flow_prn * 2)
+
+    return None
+
+
 @torch.no_grad()
 def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1,image_set='test', path=''):
     """ Peform validation using the FlyingThings3D (TEST) split """
@@ -65,6 +198,12 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         val_dataset = datasets.QPD(aug_params, image_set=image_set)
     else:
         val_dataset = datasets.QPD(aug_params, image_set=image_set, root=path)
+    
+    log_dir = 'result'
+    dp_dir = os.path.join(log_dir, 'dp_est')
+    gt_dir = os.path.join(log_dir, 'gt')
+    os.makedirs(dp_dir, exist_ok=True)
+    os.makedirs(gt_dir, exist_ok=True)
 
     out0_1_list, out0_5_list, out1_list, out2_list, out4_list, epe_list, rmse_list = [], [], [], [], [], [], []
     if val_num==None:
@@ -74,7 +213,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
     for val_id in tqdm(range(val_num)):
 
-        _, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
+        paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
         image2 = image2[None].cuda()
 
@@ -93,7 +232,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         
         if flow_pr.shape[0]==2:
             flow_pr = flow_pr[1]-flow_pr[0]
-        flow_gt = flow_gt/2
+        # flow_gt = flow_gt/2
 
         assert flow_pr.shape == flow_gt.shape, (flow_pr.shape, flow_gt.shape)
 
@@ -152,7 +291,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--restore_ckpt', help="restore checkpoint", default=None)
-    parser.add_argument('--dataset', help="dataset for evaluation", required=False, choices=["QPD"], default="QPD")
+    parser.add_argument('--dataset', help="dataset for evaluation", required=False, choices=["QPD", "Real_QPD", "MDD"], default="QPD")
     parser.add_argument('--datasets_path', default='/mnt/d/Mono+Dual/QP-Data', help="test datasets.")    
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during forward pass')
@@ -201,3 +340,8 @@ if __name__ == '__main__':
 
     if args.dataset == 'QPD':
         validate_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+    if args.dataset == 'Real_QPD':
+        validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+    if args.dataset == 'MDD':
+        validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+    
