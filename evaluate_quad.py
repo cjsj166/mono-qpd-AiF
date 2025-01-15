@@ -153,7 +153,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--restore_ckpt', help="restore checkpoint", default=None)
     parser.add_argument('--dataset', help="dataset for evaluation", required=False, choices=["QPD"], default="QPD")
-    parser.add_argument('--datasets_path', default='dd_dp_dataset_hypersim_377\\', help="test datasets.")    
+    parser.add_argument('--datasets_path', default='/mnt/d/Mono+Dual/QP-Data', help="test datasets.")    
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during forward pass')
     parser.add_argument('--input_image_num', type=int, default=4, help="batch size used during training.")
