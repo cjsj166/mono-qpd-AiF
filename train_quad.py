@@ -10,10 +10,11 @@ from torch.utils.tensorboard import SummaryWriter
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from core.qpd_net import QPDNet
+# from QPDNet.qpd_net import QPDNet
+from mono_qpd.mono_qpd import MonoQPD
 
 from evaluate_quad import *
-import core.Quad_datasets as datasets
+import mono_qpd.QPDNet.Quad_datasets as datasets
 
 try:
     from torch.cuda.amp import GradScaler
@@ -144,8 +145,11 @@ class Logger:
 
 def train(args):
 
-    model = nn.DataParallel(QPDNet(args))
+    # model = nn.DataParallel(QPDNet(args))
+    model = MonoQPD(args)
     print("Parameter Count: %d" % count_parameters(model))
+
+    args = args['qpdnet']
 
     train_loader = datasets.fetch_dataloader(args)
     
@@ -166,7 +170,11 @@ def train(args):
             model.load_state_dict(checkpoint, strict=True)
             optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
         logging.info(f"Done loading checkpoint")
-        
+    else:
+        model.da_v2.load_state_dict(torch.load('mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth'))
+        model.qpdnet.load_state_dict(torch.load('mono_qpd/QPDNet/checkpoints/checkpoints-CLR.pth'))
+
+    model = nn.DataParallel(model)        
     
     logger = Logger(model, scheduler, total_steps)
 
@@ -279,6 +287,7 @@ def train(args):
 
 
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', default='QPD-Net', help="name your experiment")
     parser.add_argument('--restore_ckpt', help="restore checkpoint")
@@ -318,7 +327,44 @@ if __name__ == '__main__':
     parser.add_argument('--do_flip', default=False, choices=['h', 'v'], help='flip the images horizontally or vertically')
     parser.add_argument('--spatial_scale', type=float, nargs='+', default=[0, 0], help='re-scale the images randomly')
     parser.add_argument('--noyjitter', action='store_true', help='don\'t simulate imperfect rectification')
+    
+
+
+    
+    # Depth Anything V2
+    parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
+    # parser.add_argument('--dataset', default='hypersim', choices=['QPD'])
+    parser.add_argument('--img-size', default=518, type=int)
+    # parser.add_argument('--min-depth', default=0.001, type=float)
+    # parser.add_argument('--max-depth', default=20, type=float)
+    parser.add_argument('--epochs', default=40, type=int)
+    # parser.add_argument('--bs', default=2, type=int)
+    # parser.add_argument('--lr', default=0.000005, type=float)
+    # parser.add_argument('--pretrained-from', type=str)
+    # parser.add_argument('--save-path', type=str, required=True)
+    parser.add_argument('--local-rank', default=0, type=int)
+    parser.add_argument('--port', default=None, type=int)
+    
     args = parser.parse_args()
+
+    # Argument categorization
+    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port'}
+
+    class ArgsNamespace:
+        def __init__(self, **entries):
+            self.__dict__.update(entries)
+
+    def split_arguments(args):
+        args_dict = vars(args)
+        da_v2_args = {key: args_dict[key] for key in da_v2_keys if key in args_dict}
+        qpdnet_args = {key: args_dict[key] for key in args_dict if key not in da_v2_keys}
+        return {
+            'da_v2': ArgsNamespace(**da_v2_args),
+            'qpdnet': ArgsNamespace(**qpdnet_args)
+        }
+
+    # Split arguments
+    split_args = split_arguments(args)
 
     torch.manual_seed(1234)
     np.random.seed(1234)
@@ -330,4 +376,4 @@ if __name__ == '__main__':
     Path("result/checkpoints").mkdir(exist_ok=True, parents=True)
     Path("result/predictions").mkdir(exist_ok=True, parents=True)
 
-    train(args)
+    train(split_args)

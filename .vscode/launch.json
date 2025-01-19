@@ -13,15 +13,15 @@
         },
 
         {
-            "name": "run",
+            "name": "DA-v2 test run",
             "type": "debugpy",
             "request": "launch",
             "program": "run.py",
-            "cwd": "${workspaceFolder}/Depth-Anything-V2",
+            "cwd": "${workspaceFolder}/mono_qpd/Depth_Anything_V2",
             "console": "integratedTerminal",
             "args": [
                 "--img-path",
-                "Depth-Anything-V2/assets/examples/demo01.jpg",
+                "assets/examples/demo01.jpg",
                 "--input-size",
                 "518",
                 "--outdir",
@@ -31,6 +31,27 @@
                 // "--grayscale"
             ]
         },
+
+
+        {
+            "name": "MonoQPD, train, qpd-train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_quad.py",
+            "console": "integratedTerminal",
+            "args": [
+                // "--restore_ckpt",
+                // "checkpoints-CLR.pth",
+                "--mixed_precision",
+                // "--save_result",
+                // "True",
+                // "--input_image_num",
+                // "2",
+                "--datasets_path",
+                "/mnt/d/Mono+Dual/QP-Data"
+            ]
+        },
+
 
         {
             "name": "QPDNet evaluation",

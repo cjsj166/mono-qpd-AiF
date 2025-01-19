@@ -3,7 +3,7 @@
 conda create --name mono-qpd python=3.12.4
 conda activate mono-qpd
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-pip install gradio_imageslider gradio==4.29.0 matplotlib opencv-python
+pip install gradio_imageslider gradio==4.29.0 matplotlib opencv-python opt-einsum scipy scikit-image imageio tensorboard
 ```
 
 # Disparity Estimation Using a Quad-Pixel Sensor

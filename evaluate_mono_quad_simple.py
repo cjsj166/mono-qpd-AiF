@@ -8,15 +8,24 @@ import logging
 import numpy as np
 import torch
 from tqdm import tqdm
-from mono_qpd.QPDNet.qpd_net import QPDNet, autocast
-import mono_qpd.QPDNet.Quad_datasets as datasets
-from mono_qpd.QPDNet.utils.utils import InputPadder
+from QPDNet.qpd_net import QPDNet, autocast
+import QPDNet.Quad_datasets as datasets
+from QPDNet.utils.utils import InputPadder
+
+
+from Depth_Anything_V2.depth_anything_v2.dpt import DepthAnythingV2
+
+
+
 from PIL import Image
 from matplotlib import pyplot as plt
 from matplotlib.colors import BoundaryNorm
 import os.path as osp
 import os
 import cv2
+
+
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -65,9 +74,9 @@ def save_image(value, path, cmap='jet', vmin=None, vmax=None):
 
 
 @torch.no_grad()
-def validate_Real_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
+def validate_Real_QPD(da_v2, qpdnet, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
     """ Peform validation using the FlyingThings3D (TEST) split """
-    model.eval()
+    qpdnet.eval()
     aug_params = {}
     
     if path == '':
@@ -99,7 +108,7 @@ def validate_Real_QPD(model, input_image_num, iters=32, mixed_prec=False, save_r
         image1, image2 = padder.pad(image1, image2)
 
         with autocast(enabled=mixed_prec):
-            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+            _, flow_pr = qpdnet(image1, image2, iters=iters, test_mode=True)
         flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
         
         if flow_pr.shape[0]==2:
@@ -126,9 +135,9 @@ def validate_Real_QPD(model, input_image_num, iters=32, mixed_prec=False, save_r
 
 
 @torch.no_grad()
-def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
+def validate_MDD(da_v2, qpdnet, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
     """ Peform validation using the FlyingThings3D (TEST) split """
-    model.eval()
+    qpdnet.eval()
     aug_params = {}
     
     if path == '':
@@ -161,7 +170,7 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
         image1, image2 = padder.pad(image1, image2)
 
         with autocast(enabled=mixed_prec):
-            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+            _, flow_pr = qpdnet(image1, image2, iters=iters, test_mode=True)
         flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
         
         if flow_pr.shape[0]==2:
@@ -187,11 +196,11 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
     return None
 
-
+# TODO: implement running depth anything and qpdnet
 @torch.no_grad()
-def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1,image_set='test', path=''):
+def validate_QPD(da_v2, qpdnet, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1,image_set='test', path=''):
     """ Peform validation using the FlyingThings3D (TEST) split """
-    model.eval()
+    qpdnet.eval()
     aug_params = {}
     
     if path == '':
@@ -227,7 +236,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         image1, image2 = padder.pad(image1, image2)
 
         with autocast(enabled=mixed_prec):
-            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+            _, flow_pr = qpdnet(image1, image2, iters=iters, test_mode=True)
         flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
         
         if flow_pr.shape[0]==2:
@@ -314,7 +323,24 @@ if __name__ == '__main__':
 
     args.save_result = args.save_result == str(True)
 
-    model = torch.nn.DataParallel(QPDNet(args), device_ids=[0])
+
+
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    
+    model_configs = {
+        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+    }
+    
+    depth_anything = DepthAnythingV2(**model_configs[args.encoder])
+    depth_anything.load_state_dict(torch.load(f'checkpoints/depth_anything_v2_{args.encoder}.pth', map_location='cpu'))
+    depth_anything = depth_anything.to(DEVICE).eval()
+
+
+
+    qpdnet = torch.nn.DataParallel(QPDNet(args), device_ids=[0])
 
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
@@ -323,25 +349,25 @@ if __name__ == '__main__':
         assert args.restore_ckpt.endswith(".pth")
         logging.info("Loading checkpoint...")
         checkpoint = torch.load(args.restore_ckpt)
-        # model.load_state_dict(checkpoint, strict=True)
+        # qpdnet.load_state_dict(checkpoint, strict=True)
         if 'model_state_dict' in checkpoint and 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
+            qpdnet.load_state_dict(checkpoint['model_state_dict'])
         else:
-            model.load_state_dict(checkpoint, strict=True)
+            qpdnet.load_state_dict(checkpoint, strict=True)
         logging.info(f"Done loading checkpoint")
         
 
-    model.cuda()
-    model.eval()
+    qpdnet.cuda()
+    qpdnet.eval()
 
-    print(f"The model has {format(count_parameters(model)/1e6, '.2f')}M learnable parameters.")
+    print(f"The model has {format(count_parameters(qpdnet)/1e6, '.2f')}M learnable parameters.")
 
     use_mixed_precision = args.corr_implementation.endswith("_cuda")
 
     if args.dataset == 'QPD':
-        validate_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+        validate_QPD(depth_anything, qpdnet, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
     if args.dataset == 'Real_QPD':
-        validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+        validate_Real_QPD(depth_anything, qpdnet, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
     if args.dataset == 'MDD':
-        validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+        validate_MDD(depth_anything, qpdnet, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
     
