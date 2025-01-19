@@ -170,12 +170,6 @@ class QuadDataset(data.Dataset):
             flow = F.interpolate(flow[None], scale_factor=scale_factor, mode='bilinear', align_corners=False)[0]
             lrtb_list = F.interpolate(lrtb_list, scale_factor=scale_factor, mode='bilinear', align_corners=False)
             
-            # flow = self.resize({'image': flow})['image']
-            # center_img = self.resize({'image': center_img})['image']
-            # resized_left = self.resize({'image': lrtb_list[:, :, :, 0]})['image']
-            # resized_right = self.resize({'image': lrtb_list[:, :, :, 1]})['image']
-            # lrtb_list = np.stack([resized_left, resized_right], axis=-1)
-
         h, w = center_img.shape[1:]
         crop_size = h // 14 * 14, w // 14 * 14
         # crop_size = 756, 1022

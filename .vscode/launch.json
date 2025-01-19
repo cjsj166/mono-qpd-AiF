@@ -43,6 +43,8 @@
                 // "--restore_ckpt",
                 // "checkpoints-CLR.pth",
                 "--mixed_precision",
+                "--batch_size",
+                "1",
                 // "--save_result",
                 // "True",
                 // "--input_image_num",

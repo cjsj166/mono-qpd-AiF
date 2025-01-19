@@ -16,9 +16,6 @@ from mono_qpd.mono_qpd import MonoQPD
 from evaluate_quad import *
 import mono_qpd.QPDNet.Quad_datasets as datasets
 
-from argparse import Namespace
-
-
 try:
     from torch.cuda.amp import GradScaler
 except:
@@ -183,7 +180,7 @@ def train(args):
 
     model.cuda()
     model.train()
-    # model.module.freeze_bn() # We keep BatchNorm frozen
+    model.module.freeze_bn() # We keep BatchNorm frozen
 
     validation_frequency = 10000
 
@@ -209,7 +206,6 @@ def train(args):
             if args.input_image_num == 4:
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1],lrtblist[:,2],lrtblist[:,3]], dim=0).contiguous()
             else:
-
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1]], dim=0).contiguous()
 
             assert model.training
@@ -303,10 +299,11 @@ if __name__ == '__main__':
     parser.add_argument('--datasets_path', default='dd_dp_dataset_hypersim_377\\', help="training datasets.")
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")
-    parser.add_argument('--input_image_num', type=int, default=2, help="batch size used during training.")
-    parser.add_argument('--image_size', type=int, nargs='+', default=[518, 518], help="size of the random image crops used during training.")
+    parser.add_argument('--input_image_num', type=int, default=4, help="batch size used during training.")
+    parser.add_argument('--image_size', type=int, nargs='+', default=[452, 452], help="size of the random image crops used during training.")
     parser.add_argument('--train_iters', type=int, default=8, help="number of updates to the disparity field in each forward pass.")
     parser.add_argument('--wdecay', type=float, default=.00001, help="Weight decay in optimizer.")
+
     parser.add_argument('--CAPA', default=True, help="if use Channel wise and pixel wise attention")
     
 
@@ -323,7 +320,6 @@ if __name__ == '__main__':
     parser.add_argument('--slow_fast_gru', action='store_true', help="iterate the low-res GRUs more frequently")
     parser.add_argument('--n_gru_layers', type=int, default=3, help="number of hidden GRU levels")
     parser.add_argument('--hidden_dims', nargs='+', type=int, default=[128]*3, help="hidden state and context dimensions")
-
 
     # Data augmentation
     parser.add_argument('--img_gamma', type=float, nargs='+', default=None, help="gamma range")
@@ -354,17 +350,17 @@ if __name__ == '__main__':
     # Argument categorization
     da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port'}
 
-    # class ArgsNamespace:
-    #     def __init__(self, **entries):
-    #         self.__dict__.update(entries)
+    class ArgsNamespace:
+        def __init__(self, **entries):
+            self.__dict__.update(entries)
 
     def split_arguments(args):
         args_dict = vars(args)
         da_v2_args = {key: args_dict[key] for key in da_v2_keys if key in args_dict}
         qpdnet_args = {key: args_dict[key] for key in args_dict if key not in da_v2_keys}
         return {
-            'da_v2': Namespace(**da_v2_args),
-            'qpdnet': Namespace(**qpdnet_args)
+            'da_v2': ArgsNamespace(**da_v2_args),
+            'qpdnet': ArgsNamespace(**qpdnet_args)
         }
 
     # Split arguments

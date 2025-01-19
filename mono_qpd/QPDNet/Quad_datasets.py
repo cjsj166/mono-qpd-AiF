@@ -130,6 +130,30 @@ class QuadDataset(data.Dataset):
         else:
             valid = (np.abs(flow[0]) < 512) & (np.abs(flow[1]) < 512)
 
+
+        
+        # h, w = center_img.shape[1:]
+        # scale_factor = 518 / h        
+
+        # if self.resize is not None:
+        #     center_img = F.interpolate(center_img[None], scale_factor=scale_factor, mode='bilinear', align_corners=False)[0] # Hard coding 768, 1024 to 770, 1027
+        #     flow = F.interpolate(flow[None], scale_factor=scale_factor, mode='bilinear', align_corners=False)[0]
+        #     lrtb_list = F.interpolate(lrtb_list, scale_factor=scale_factor, mode='bilinear', align_corners=False)
+            
+        # h, w = center_img.shape[1:]
+        # crop_size = h // 14 * 14, w // 14 * 14
+        # # crop_size = 756, 1022
+        # h_start = (h - crop_size[0]) // 2
+        # h_end = h_start + crop_size[0]
+        # w_start = (w - crop_size[1]) // 2
+        # w_end = w_start + crop_size[1]
+
+        # center_img = center_img[:, h_start:h_end, w_start:w_end]
+        # lrtb_list = lrtb_list[:, :, h_start:h_end, w_start:w_end]
+        # flow = flow[:, h_start:h_end, w_start:w_end][0]
+        # valid = valid[h_start:h_end, w_start:w_end]
+
+
        
         flow = flow[:1]
 

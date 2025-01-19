@@ -333,7 +333,8 @@ class QuadAugmentor:
         self.yjitter = yjitter
         self.do_flip = do_flip
         self.h_flip_prob = 0.5
-        self.v_flip_prob = 0.1
+        # self.v_flip_prob = 0.1
+        self.v_flip_prob = 0
 
         # photometric augmentation params
         self.photo_aug = Compose([ColorJitter(brightness=0.4, contrast=0.4, saturation=saturation_range, hue=0.5/3.14), AdjustGamma(*gamma)])
