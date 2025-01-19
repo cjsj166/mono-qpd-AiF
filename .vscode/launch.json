@@ -37,7 +37,7 @@
             "name": "MonoQPD, train, qpd-train",
             "type": "debugpy",
             "request": "launch",
-            "program": "train_quad.py",
+            "program": "train_mono_qpd.py",
             "console": "integratedTerminal",
             "args": [
                 // "--restore_ckpt",

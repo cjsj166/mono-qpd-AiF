@@ -8,12 +8,12 @@ import logging
 import numpy as np
 import torch
 from tqdm import tqdm
-from QPDNet.qpd_net import QPDNet, autocast
-import QPDNet.Quad_datasets as datasets
-from QPDNet.utils.utils import InputPadder
+from mono_qpd.QPDNet.qpd_net import QPDNet, autocast
+import mono_qpd.QPDNet.Quad_datasets as datasets
+from mono_qpd.QPDNet.utils.utils import InputPadder
 
 
-from Depth_Anything_V2.depth_anything_v2.dpt import DepthAnythingV2
+from mono_qpd.Depth_Anything_V2.depth_anything_v2.dpt import DepthAnythingV2
 
 
 
