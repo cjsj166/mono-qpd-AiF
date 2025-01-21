@@ -18,6 +18,8 @@ import mono_qpd.QPDNet.Quad_datasets as datasets
 
 from argparse import Namespace
 
+from evaluate_mono_qpd import validate_mono_qpd
+
 
 try:
     from torch.cuda.amp import GradScaler
@@ -253,7 +255,7 @@ def train(args):
                             }, save_path)
                 
                 if total_steps % (batch_len*1) == 0:
-                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path)
+                    results = validate_mono_qpd(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path)
 
                 if epebest>=results['things-epe']:
                     epebest = results['things-epe']
@@ -304,7 +306,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")
     parser.add_argument('--input_image_num', type=int, default=2, help="batch size used during training.")
-    parser.add_argument('--image_size', type=int, nargs='+', default=[518, 518], help="size of the random image crops used during training.")
+    parser.add_argument('--image_size', type=int, nargs='+', default=[452, 452], help="size of the random image crops used during training.")
     parser.add_argument('--train_iters', type=int, default=8, help="number of updates to the disparity field in each forward pass.")
     parser.add_argument('--wdecay', type=float, default=.00001, help="Weight decay in optimizer.")
     parser.add_argument('--CAPA', default=True, help="if use Channel wise and pixel wise attention")

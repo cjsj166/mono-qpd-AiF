@@ -49,7 +49,10 @@ def affine_invariant_1(
         w = 1 / np.maximum(eps, residual)
     
     # finally,
-    ai1 = np.sum(conf * residual) / np.sum(conf)
+    if np.sum(conf) == 0:
+        ai1 = np.nan
+    else:
+        ai1 = np.sum(conf * residual) / np.sum(conf)
     return ai1, b
 
 
@@ -74,7 +77,10 @@ def affine_invariant_2(
     residual_sq = np.minimum(np.square(affine_y - t), np.finfo(np.float32).max)
 
     # finally,
-    ai2 = np.sqrt(np.sum(conf * residual_sq) / np.sum(conf))
+    if np.sum(conf) == 0:
+        ai1 = np.nan
+    else:
+        ai2 = np.sqrt(np.sum(conf * residual_sq) / np.sum(conf))
     return ai2, b
 
 

@@ -24,6 +24,14 @@ class MonoQPD(nn.Module):
 
         self.da_v2 = DepthAnythingV2(da_v2_args.encoder)
         self.qpdnet = QPDNet(qpdnet_args)
+
+    def resize_to_14_multiples(self, image):
+        h, w = image.shape[2], image.shape[3]
+        new_h = (h // 14) * 14
+        new_w = (w // 14) * 14
+
+        resized_image = F.interpolate(image, size=(new_h, new_w), mode='bilinear', align_corners=False)
+        return resized_image
     
     def normalize_image(self, image):
         # Normalization
@@ -34,8 +42,15 @@ class MonoQPD(nn.Module):
         return image
         
     def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False):
-        image1_norm = self.normalize_image(image1)
-        enc_features, depth = self.da_v2(image1_norm)
-        disp_predictions = self.qpdnet(enc_features, image1, image2)
+        image1_resized = self.resize_to_14_multiples(image1)
+        image1_resized_normed = self.normalize_image(image1_resized)
+        enc_features, depth = self.da_v2(image1_resized_normed)
 
-        return disp_predictions
+        if test_mode:
+            original_disp, upsampled = self.qpdnet(enc_features, image1, image2, iters=iters, test_mode=test_mode, flow_init=None)
+            return original_disp, upsampled
+        else:
+            disp_predictions = self.qpdnet(enc_features, image1, image2, iters=iters, test_mode=test_mode, flow_init=None)
+            return disp_predictions
+
+        

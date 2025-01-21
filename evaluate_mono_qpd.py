@@ -227,7 +227,7 @@ def validate_mono_qpd(model, input_image_num, iters=32, mixed_prec=False, save_r
         image1, image2 = padder.pad(image1, image2)
 
         with autocast(enabled=mixed_prec):
-            flow_pr = model(image1, image2, iters=iters, test_mode=True)
+            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
         flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
         
         if flow_pr.shape[0]==2:
