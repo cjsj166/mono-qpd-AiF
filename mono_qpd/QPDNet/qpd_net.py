@@ -106,7 +106,7 @@ class QPDNet(nn.Module):
             net_list = [torch.tanh(x[0]) for x in cnet_list]
             inp_list = [torch.relu(x[1]) for x in cnet_list]
 
-            # Rather than running the GRU's conv layers on the context features multiple times, we do it once at the beginning 
+            # Rather than running the GRU's conv layers on the context features multiple times, we do it once at the beginning
             inp_list = [list(conv(i).split(split_size=conv.out_channels//3, dim=1)) for i,conv in zip(inp_list, self.context_zqr_convs)]
 
         if self.args.corr_implementation == "reg": # Default
