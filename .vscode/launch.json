@@ -45,6 +45,8 @@
                 "--mixed_precision",
                 "--batch_size",
                 "1",
+                "--restore_ckpt_da_v2",
+                "mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth",
                 // "--save_result",
                 // "True",
                 // "--input_image_num",

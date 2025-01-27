@@ -78,7 +78,7 @@ class QPDNet(nn.Module):
         return up_flow.reshape(N, D, factor*H, factor*W)
 
 
-    def forward(self, enc_features, image1, image2, iters=12, flow_init=None, test_mode=False):
+    def forward(self, int_features, image1, image2, iters=12, flow_init=None, test_mode=False):
         """ Estimate optical flow between pair of frames """
 
         image1 = (2 * (image1 / 255.0) - 1.0).contiguous()
@@ -104,7 +104,8 @@ class QPDNet(nn.Module):
                     fmap2 = torch.stack(fmap[1:],dim=1)
 
             net_list = [torch.tanh(x[0]) for x in cnet_list]
-            inp_list = [torch.relu(x[1]) for x in cnet_list]
+            ori_inp_list = [torch.relu(x[1]) for x in cnet_list] # Original
+            inp_list = [x for x in int_features[::-1]]
 
             # Rather than running the GRU's conv layers on the context features multiple times, we do it once at the beginning
             inp_list = [list(conv(i).split(split_size=conv.out_channels//3, dim=1)) for i,conv in zip(inp_list, self.context_zqr_convs)]

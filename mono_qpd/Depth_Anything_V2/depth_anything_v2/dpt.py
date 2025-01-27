@@ -126,14 +126,14 @@ class DPTHead(nn.Module):
             
             x = x.permute(0, 2, 1).reshape((x.shape[0], x.shape[-1], patch_h, patch_w))
             
-            if not intermediate:
-                x = self.projects[i](x)
-                x = self.resize_layers[i](x)
+            # if not intermediate:
+            x = self.projects[i](x)
+            x = self.resize_layers[i](x)
             
             out.append(x)
 
         if intermediate:
-            return x
+            return out
         
         layer_1, layer_2, layer_3, layer_4 = out
         
@@ -182,10 +182,12 @@ class DepthAnythingV2(nn.Module):
         
         features = self.pretrained.get_intermediate_layers(x, self.intermediate_layer_idx[self.encoder], return_class_token=True)
         
-        depth = self.depth_head(features, patch_h, patch_w)
-        depth = F.relu(depth)
+        # depth = self.depth_head(features, patch_h, patch_w) # Original
         
-        return features, depth.squeeze(1)
+        int_featuers = self.depth_head(features, patch_h, patch_w, intermediate=True)  # Modified, Get intermediate layer
+        # depth = F.relu(depth) # Original
+        
+        return int_featuers
     
     @torch.no_grad()
     def infer_image(self, raw_image, input_size=518):

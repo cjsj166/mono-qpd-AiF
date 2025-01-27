@@ -161,24 +161,26 @@ def train(args):
     total_steps = 0
     optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
 
-    if args.restore_ckpt is not None:
-        assert args.restore_ckpt.endswith(".pth")
-        logging.info("Loading checkpoint...")
-        total_steps = int((args.restore_ckpt).split('\\')[-1].split("_")[2])+1
-        checkpoint = torch.load(args.restore_ckpt)
-        # model.load_state_dict(checkpoint, strict=True)
-        if 'model_state_dict' in checkpoint and 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        else:
-            model.load_state_dict(checkpoint, strict=True)
-            optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
-        logging.info(f"Done loading checkpoint")
-    else:
-        model.da_v2.load_state_dict(torch.load('mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth'))
-        model.qpdnet.load_state_dict(torch.load('mono_qpd/QPDNet/checkpoints/checkpoints-CLR.pth'))
+    if args.restore_ckpt_qpd_net is not None:
+    #     assert args.restore_ckpt.endswith(".pth")
+    #     logging.info("Loading checkpoint...")
+    #     total_steps = int((args.restore_ckpt).split('\\')[-1].split("_")[2])+1
+    #     checkpoint = torch.load(args.restore_ckpt)
+    #     # model.load_state_dict(checkpoint, strict=True)
+    #     if 'model_state_dict' in checkpoint and 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint:
+    #         model.load_state_dict(checkpoint['model_state_dict'])
+    #         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    #         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+    #     else:
+    #         model.load_state_dict(checkpoint, strict=True)
+    #         optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
+    #     logging.info(f"Done loading checkpoint")
+    # else:
+        model.qpdnet.load_state_dict(torch.load(args.restore_ckpt_qpd_net))
 
+    if args.restore_ckpt_da_v2 is not None:
+        model.da_v2.load_state_dict(torch.load(args.restore_ckpt_da_v2))
+        
     model = nn.DataParallel(model)        
     
     logger = Logger(model, scheduler, total_steps)
@@ -296,7 +298,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', default='QPD-Net', help="name your experiment")
-    parser.add_argument('--restore_ckpt', help="restore checkpoint")
+    parser.add_argument('--restore_ckpt_da_v2', default=None, help="restore checkpoint")
+    parser.add_argument('--restore_ckpt_qpd_net', default=None, help="restore checkpoint")
+
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
 
     # Training parameters
@@ -354,7 +358,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Argument categorization
-    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port'}
+    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', '--restore_ckpt_da_v2'}
+
 
     # class ArgsNamespace:
     #     def __init__(self, **entries):
