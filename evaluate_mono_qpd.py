@@ -223,12 +223,11 @@ def validate_mono_qpd(model, input_image_num, iters=32, mixed_prec=False, save_r
         else:
             image2 = image2.squeeze()[:2]
 
-        padder = InputPadder(image1.shape, divis_by=32)
-        image1, image2 = padder.pad(image1, image2)
-
+        # padder = InputPadder(image1.shape, divis_by=32)
+        # image1, image2 = padder.pad(image1, image2)
         with autocast(enabled=mixed_prec):
             _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
-        flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
+        flow_pr = flow_pr.cpu().squeeze(0)
         
         if flow_pr.shape[0]==2:
             flow_pr = flow_pr[1]-flow_pr[0]

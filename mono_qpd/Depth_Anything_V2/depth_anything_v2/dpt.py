@@ -126,9 +126,9 @@ class DPTHead(nn.Module):
             
             x = x.permute(0, 2, 1).reshape((x.shape[0], x.shape[-1], patch_h, patch_w))
             
-            # if not intermediate:
-            x = self.projects[i](x)
-            x = self.resize_layers[i](x)
+            if not intermediate:
+                x = self.projects[i](x)
+                x = self.resize_layers[i](x)
             
             out.append(x)
 
@@ -146,6 +146,9 @@ class DPTHead(nn.Module):
         path_3 = self.scratch.refinenet3(path_4, layer_3_rn, size=layer_2_rn.shape[2:])
         path_2 = self.scratch.refinenet2(path_3, layer_2_rn, size=layer_1_rn.shape[2:])
         path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
+
+        
+        
         
         out = self.scratch.output_conv1(path_1)
         out = F.interpolate(out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True)

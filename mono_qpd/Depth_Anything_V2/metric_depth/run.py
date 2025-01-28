@@ -2,9 +2,11 @@ import argparse
 import cv2
 import glob
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import torch
+from util.colorize import show_colormap
 
 from depth_anything_v2.dpt import DepthAnythingV2
 

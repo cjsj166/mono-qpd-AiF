@@ -46,10 +46,13 @@ class MonoQPD(nn.Module):
         return image
         
     def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False):
-        image1_resized = self.resize_to_14_multiples(image1)
-        image1_resized_normed = self.normalize_image(image1_resized)
-        # enc_features, depth = self.da_v2(image1_resized_normed) # Original
-        int_features = self.da_v2(image1_resized_normed)
+        h, w = image1.shape[2], image1.shape[3]
+        assert h % 14 == 0 and w % 14 == 0, "Image dimensions must be multiples of 14"
+        # image1_resized = self.resize_to_14_multiples(image1)
+
+        image1_normalized = self.normalize_image(image1)
+        # enc_features, depth = self.da_v2(image1_normalized) # Original
+        int_features = self.da_v2(image1_normalized)
         int_features = int_features[1:]
         int_features = self.feature_converter(int_features)
         int_features = int_features[::-1] # Reverse the order of the features

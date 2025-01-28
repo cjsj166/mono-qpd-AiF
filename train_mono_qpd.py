@@ -154,6 +154,7 @@ def train(args):
     model = MonoQPD(args)
     print("Parameter Count: %d" % count_parameters(model))
 
+    da_v2_args = args['da_v2']
     args = args['qpdnet']
 
     train_loader = datasets.fetch_dataloader(args)
@@ -178,10 +179,14 @@ def train(args):
     # else:
         model.qpdnet.load_state_dict(torch.load(args.restore_ckpt_qpd_net))
 
-    if args.restore_ckpt_da_v2 is not None:
-        model.da_v2.load_state_dict(torch.load(args.restore_ckpt_da_v2))
+    if da_v2_args.restore_ckpt_da_v2 is not None:
+        model.da_v2.load_state_dict(torch.load(da_v2_args.restore_ckpt_da_v2))
         
-    model = nn.DataParallel(model)        
+    if da_v2_args.freeze_da_v2:
+        for param in model.da_v2.parameters():
+            param.requires_grad = False
+    
+    model = nn.DataParallel(model)
     
     logger = Logger(model, scheduler, total_steps)
 
@@ -271,7 +276,7 @@ def train(args):
                 logger.write_dict(results)
 
                 model.train()
-                model.module.freeze_bn()
+                # model.module.freeze_bn()
 
             total_steps += 1
 
@@ -283,13 +288,13 @@ def train(args):
             save_path = Path('result/checkpoints/%d_epoch_%d_%s.pth.gz' % (epoch, total_steps + 1, args.name))
             print()
             logging.info(f"Saving file {save_path}")
-            torch.save(model.state_dict(), save_path)
+            torch.save(model.module.state_dict(), save_path)
 
 
     print("FINISHED TRAINING")
     logger.close()
     PATH = 'result/checkpoints/%s.pth' % args.name
-    torch.save(model.state_dict(), PATH)
+    torch.save(model.module.state_dict(), PATH)
 
     return PATH
 
@@ -297,11 +302,11 @@ def train(args):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='QPD-Net', help="name your experiment")
+    parser.add_argument('--name', default='Mono-QPD', help="name your experiment")
     parser.add_argument('--restore_ckpt_da_v2', default=None, help="restore checkpoint")
     parser.add_argument('--restore_ckpt_qpd_net', default=None, help="restore checkpoint")
 
-    parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
+    parser.add_argument('--mixed_precision', action='store_false', help='use mixed precision')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=4, help="batch size used during training.")
@@ -310,7 +315,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")
     parser.add_argument('--input_image_num', type=int, default=2, help="batch size used during training.")
-    parser.add_argument('--image_size', type=int, nargs='+', default=[452, 452], help="size of the random image crops used during training.")
+    parser.add_argument('--image_size', type=int, nargs='+', default=[448, 448], help="size of the random image crops used during training.")
     parser.add_argument('--train_iters', type=int, default=8, help="number of updates to the disparity field in each forward pass.")
     parser.add_argument('--wdecay', type=float, default=.00001, help="Weight decay in optimizer.")
     parser.add_argument('--CAPA', default=True, help="if use Channel wise and pixel wise attention")
@@ -353,12 +358,13 @@ if __name__ == '__main__':
     # parser.add_argument('--pretrained-from', type=str)
     # parser.add_argument('--save-path', type=str, required=True)
     parser.add_argument('--local-rank', default=0, type=int)
+    parser.add_argument('--freeze_da_v2', action='store_true')
     parser.add_argument('--port', default=None, type=int)
     
     args = parser.parse_args()
 
     # Argument categorization
-    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', '--restore_ckpt_da_v2'}
+    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
 
 
     # class ArgsNamespace:

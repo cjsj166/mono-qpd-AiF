@@ -24,8 +24,8 @@ class ConvGRU(nn.Module):
         x = torch.cat(x_list, dim=1)
         hx = torch.cat([h, x], dim=1)
 
-        z = torch.sigmoid(self.convz(hx) + cz)
-        r = torch.sigmoid(self.convr(hx) + cr)
+        z = torch.sigmoid(self.convz(hx) + cz) # update gate
+        r = torch.sigmoid(self.convr(hx) + cr) # reset gate
         q = torch.tanh(self.convq(torch.cat([r*h, x], dim=1)) + cq)
 
         h = (1-z) * h + z * q

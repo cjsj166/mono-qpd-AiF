@@ -44,7 +44,7 @@
                 // "checkpoints-CLR.pth",
                 "--mixed_precision",
                 "--batch_size",
-                "1",
+                "2",
                 "--restore_ckpt_da_v2",
                 "mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth",
                 // "--save_result",
@@ -52,7 +52,8 @@
                 // "--input_image_num",
                 // "2",
                 "--datasets_path",
-                "/mnt/d/Mono+Dual/QP-Data"
+                "/mnt/d/Mono+Dual/QP-Data",
+                "--freeze_da_v2"
             ]
         },
 
