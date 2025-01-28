@@ -47,6 +47,31 @@ class QuadDataset(data.Dataset):
         self.image_set = image_set
         self.randomBright = RandomBrightness()
 
+    def resize_to_224_multiples(self, center_img, lrtb_list, flow, valid):
+        h, w = center_img.shape[-2:]
+
+        if h % 224 != 0:
+            new_h = (h // 224 + 1) * 224
+        else:
+            new_h = h
+
+        if w % 224 != 0:
+            new_w = (w // 224 + 1) * 224
+        else:
+            new_w = w
+
+        center_img = center_img.unsqueeze(0)
+        center_img = F.interpolate(center_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        lrtb_list = F.interpolate(lrtb_list, size=(new_h, new_w), mode='bilinear', align_corners=False)
+        flow = F.interpolate(flow[None], size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        # Nearest neighbor interpolation for valid
+        valid = F.interpolate(valid[None,None].float(), size=(new_h, new_w), mode='nearest')[0,0].byte()
+
+        flow = flow * new_w / w
+
+        return center_img, lrtb_list, flow, valid
+        
+
     def __getitem__(self, index):
 
         if self.is_test:
@@ -131,6 +156,13 @@ class QuadDataset(data.Dataset):
             valid = (np.abs(flow[0]) < 512) & (np.abs(flow[1]) < 512)
 
 
+        h, w = center_img.shape[-2:]
+
+        if h%224 != 0 or w%224 != 0:
+            center_img, lrtb_list, flow, valid = self.resize_to_224_multiples(center_img, lrtb_list, flow, valid)
+
+            
+        # return resized_image
         
         # h, w = center_img.shape[1:]
         # scale_factor = 518 / h        
