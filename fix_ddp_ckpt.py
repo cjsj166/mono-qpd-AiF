@@ -1,8 +1,13 @@
 import torch
 from collections import OrderedDict
 
+
+
 if __name__ == '__main__':
-    state_dict = torch.load('mono_qpd/QPDNet/checkpoints/checkpoints-CLR-ddp.pth')
+    ckpt_path = 'result/checkpoints/20_epoch_30101_Mono-QPD.pth'
+    save_path = ckpt_path.replace('.pth', '-fixed.pth')
+
+    state_dict = torch.load(ckpt_path)
     state_dict = state_dict['model_state_dict']
 
     fixed_state_dict = OrderedDict()
@@ -13,5 +18,5 @@ if __name__ == '__main__':
             k = k.replace('module.', '')
         fixed_state_dict[k] = v
 
-    torch.save(fixed_state_dict, 'mono_qpd/QPDNet/checkpoints/checkpoints-CLR.pth')
+    torch.save(fixed_state_dict, save_path)
             

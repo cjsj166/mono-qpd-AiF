@@ -18,7 +18,7 @@ import mono_qpd.QPDNet.Quad_datasets as datasets
 
 from argparse import Namespace
 
-from evaluate_mono_qpd import validate_mono_qpd
+from evaluate_mono_qpd import validate_QPD
 
 
 try:
@@ -255,14 +255,14 @@ def train(args):
                 print('checkpoints/%d_epoch_%d_%s' % (epoch, total_steps + 1, args.name))
                 logging.info(f"Saving file {save_path.absolute()}")
                 torch.save({
-                            'model_state_dict': model.state_dict(),
+                            'model_state_dict': model.module.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'scheduler_state_dict': scheduler.state_dict(),
                             # ... any other states you need
                             }, save_path)
                 
                 if total_steps % (batch_len*1) == 0:
-                    results = validate_mono_qpd(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path)
+                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path)
 
                 if epebest>=results['things-epe']:
                     epebest = results['things-epe']

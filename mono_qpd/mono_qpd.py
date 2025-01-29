@@ -24,7 +24,7 @@ class MonoQPD(nn.Module):
         qpdnet_args = args['qpdnet']
         da_v2_args = args['da_v2']
 
-        self.feature_converter = FeatureConverter(qpdnet_args.image_size)
+        self.feature_converter = FeatureConverter()
 
         self.da_v2 = DepthAnythingV2(da_v2_args.encoder)
         self.qpdnet = QPDNet(qpdnet_args)
@@ -47,7 +47,7 @@ class MonoQPD(nn.Module):
         
     def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False):
         h, w = image1.shape[2], image1.shape[3]
-        assert h % 14 == 0 and w % 14 == 0, "Image dimensions must be multiples of 14"
+        assert h % 224 == 0 and w % 224 == 0, "Image dimensions must be multiples of 224"
         # image1_resized = self.resize_to_14_multiples(image1)
 
         image1_normalized = self.normalize_image(image1)
@@ -63,6 +63,4 @@ class MonoQPD(nn.Module):
         else:
             disp_predictions = self.qpdnet(int_features, image1, image2, iters=iters, test_mode=test_mode, flow_init=None)
             return disp_predictions
-
-        
 

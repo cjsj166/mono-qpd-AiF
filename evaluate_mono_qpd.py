@@ -17,6 +17,12 @@ from matplotlib.colors import BoundaryNorm
 import os.path as osp
 import os
 import cv2
+from mono_qpd.mono_qpd import MonoQPD
+from argparse import Namespace
+import torch.nn as nn
+
+from evaluation.eval import Eval
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -126,7 +132,7 @@ def validate_Real_QPD(model, input_image_num, iters=32, mixed_prec=False, save_r
 
 
 @torch.no_grad()
-def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path=''):
+def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1, image_set='test', path='', save_path='result/predictions'):
     """ Peform validation using the FlyingThings3D (TEST) split """
     model.eval()
     aug_params = {}
@@ -134,19 +140,27 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
     if path == '':
         val_dataset = datasets.MDD(aug_params, image_set=image_set)
     else:
-        val_dataset = datasets.MDD(aug_params, image_set=image_set, root=path)
+        val_dataset = datasets.MDD(aug_params, image_set=image_set, root=path, resize_ratio=4)
 
     path = os.path.basename(os.path.basename(path))
     
-    log_dir = 'res'
-    dp_dir = os.path.join(log_dir, path, 'dp_est')
-    os.makedirs(dp_dir, exist_ok=True)
+    est_dir = os.path.join(save_path, 'est')
+    err_dir = os.path.join(save_path, 'err')
+    gt_dir = os.path.join(save_path, 'gt')
+    src_dir = os.path.join(save_path, 'src')
+    os.makedirs(est_dir, exist_ok=True)
+    os.makedirs(err_dir, exist_ok=True)
+    os.makedirs(gt_dir, exist_ok=True)
+    os.makedirs(src_dir, exist_ok=True)
 
     if val_num==None:
         val_num = len(val_dataset)
 
+    eval_est = Eval(os.path.join(save_path, 'center'))
+
     for val_id in tqdm(range(val_num)):
-        paths, image1, image2, flow_gt = val_dataset[val_id]
+        
+        paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         
         image1 = image1[None].cuda()
         image2 = image2[None].cuda()
@@ -157,13 +171,17 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
         else:
             image2 = image2.squeeze()[:2]
 
-        padder = InputPadder(image1.shape, divis_by=32)
-        image1, image2 = padder.pad(image1, image2)
+        # padder = InputPadder(image1.shape, divis_by=32)
+        # image1, image2 = padder.pad(image1, image2)
 
         with autocast(enabled=mixed_prec):
             _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
-        flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
+        # flow_pr = padder.unpad(flow_pr).cpu().squeeze(0)
+        flow_pr = flow_pr.cpu().squeeze(0).numpy()
         
+        flow_gt = flow_gt.cpu().numpy()
+        image1 = image1.cpu().squeeze(0).permute(1,2,0).numpy()
+
         if flow_pr.shape[0]==2:
             flow_pr = flow_pr[0]-flow_pr[1]
 
@@ -173,23 +191,51 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
             
             pth_lists = paths[0].split('/')[-3:]
             pth = '/'.join(pth_lists)
+            pth = os.path.basename(pth)
+
+            est_ai2, est_b2 = eval_est.affine_invariant_2(flow_pr, flow_gt)
+            est_ai2_fit = flow_pr * est_b2[0] + est_b2[1]
+
+            vrng = flow_gt.max() - flow_gt.min()
+            vmin, vmax = flow_gt.min() - vrng * 0.1, flow_gt.max() + vrng * 0.1
+            # vmin, vmax = 0, 1.5
+            vmin_err, vmax_err = 0, vrng * 0.1
+
+            vmin, vmax = np.min([est_ai2_fit, flow_gt]), np.max([est_ai2_fit, flow_gt])
+            vmin_err, vmax_err = np.min([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit]), np.max([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit])
+
+            # vmin, vmax = 10, 300
+            # vmin_err, vmax_err = 0, 100
+            
+            eval_est.add_colorrange(vmin, vmax)
+            # eval_dp.add_colorrange(vmin, vmax)
+
+
+            # Save in colormap
+            plt.imsave(os.path.join(est_dir, pth), est_ai2_fit.squeeze(), cmap='jet', vmin=vmin, vmax=vmax)        
+            plt.imsave(os.path.join(err_dir, pth), np.abs(est_ai2_fit.squeeze() - flow_gt.squeeze()), cmap='jet', vmin=vmin_err, vmax=vmax_err)
+            
+            plt.imsave(os.path.join(gt_dir, pth), flow_gt.squeeze(), cmap='jet', vmin=vmin, vmax=vmax)
+            plt.imsave(os.path.join(src_dir, pth), image1.astype(np.uint8))
+
+
             # pth_lists[-1] = pth_lists[-1].replace('.jpg', '_-10_3_range.png')
             # fixed_range_result_pth = '/'.join(pth_lists)
 
-            pth = pth.replace('.jpg', '.npy')
+            # pth = pth.replace('.jpg', '.npy')
 
-            os.makedirs(os.path.join(dp_dir, os.path.dirname(pth)), exist_ok=True)
+            # os.makedirs(os.path.join(est_dir, os.path.dirname(pth)), exist_ok=True)
             
-            flow_prn = flow_pr.cpu().numpy().squeeze()
-            flow_prn = cv2.resize(flow_prn, (5180, 2940),interpolation=cv2.INTER_LINEAR)
+            # flow_prn = flow_pr.cpu().numpy().squeeze()
+            # flow_prn = cv2.resize(flow_prn, (5180, 2940),interpolation=cv2.INTER_LINEAR)
 
-            np.save(os.path.join(dp_dir, pth), flow_prn * 2)
+            # np.save(os.path.join(est_dir, pth), flow_prn * 2)
 
     return None
 
 
 @torch.no_grad()
-def validate_mono_qpd(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1,image_set='test', path=''):
+def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result=False, val_num=None, val_save_skip=1,image_set='test', path=''):
     """ Peform validation using the FlyingThings3D (TEST) split """
     model.eval()
     aug_params = {}
@@ -294,7 +340,7 @@ if __name__ == '__main__':
     parser.add_argument('--datasets_path', default='/mnt/d/Mono+Dual/QP-Data', help="test datasets.")    
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during forward pass')
-    parser.add_argument('--input_image_num', type=int, default=4, help="batch size used during training.")
+    parser.add_argument('--input_image_num', type=int, default=2, help="2 for LR and 4 for LRTB")
     parser.add_argument('--CAPA', default=True, help="if use Channel wise and pixel wise attention")
 
     # Architecure choices
@@ -308,15 +354,39 @@ if __name__ == '__main__':
     parser.add_argument('--slow_fast_gru', action='store_true', help="iterate the low-res GRUs more frequently")
     parser.add_argument('--n_gru_layers', type=int, default=3, help="number of hidden GRU levels")
     parser.add_argument('--save_path', default='result/predictions/')
-    parser.add_argument('--save_result', default='False')
+    parser.add_argument('--save_result', default='True')
+
+        
+    # Depth Anything V2
+    parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
+
+    
     args = parser.parse_args()
 
     args.save_result = args.save_result == str(True)
 
-    model = torch.nn.DataParallel(QPDNet(args), device_ids=[0])
+    # Argument categorization
+    da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
+
+    def split_arguments(args):
+        args_dict = vars(args)
+        da_v2_args = {key: args_dict[key] for key in da_v2_keys if key in args_dict}
+        qpdnet_args = {key: args_dict[key] for key in args_dict if key not in da_v2_keys}
+        return {
+            'da_v2': Namespace(**da_v2_args),
+            'qpdnet': Namespace(**qpdnet_args)
+        }
+
+    # Split arguments
+    split_args = split_arguments(args)
+    
+    model = MonoQPD(split_args)
 
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
+
+    # Delete after mdoel is properly saved
+    model = nn.DataParallel(model)
 
     if args.restore_ckpt is not None:
         assert args.restore_ckpt.endswith(".pth")
@@ -328,7 +398,11 @@ if __name__ == '__main__':
         else:
             model.load_state_dict(checkpoint, strict=True)
         logging.info(f"Done loading checkpoint")
-        
+
+    # Delete after mdoel is properly saved
+    model = model.module
+
+
 
     model.cuda()
     model.eval()
@@ -342,5 +416,5 @@ if __name__ == '__main__':
     if args.dataset == 'Real_QPD':
         validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
     if args.dataset == 'MDD':
-        validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+        validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=args.save_path)
     

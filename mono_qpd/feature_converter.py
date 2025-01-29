@@ -2,9 +2,9 @@ import torch
 from torch import nn
 
 class FeatureConverter(nn.Module):
-    def __init__(self, c_res):
+    def __init__(self):
         super(FeatureConverter, self).__init__()
-        c_h, c_w = c_res
+        # c_h, c_w = c_res
 
         self.basic_shuffle = nn.PixelShuffle(2)
         # c_h, c_w = (c_h + c_h % 2) / 2, (c_w + c_w % 2) / 2
