@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mono_qpd.QPDNet.qpd_net import QPDNet
 from mono_qpd.Depth_Anything_V2.depth_anything_v2.dpt import DepthAnythingV2
-from mono_qpd.feature_converter import FeatureConverter
+from mono_qpd.feature_converter import PixelShuffleConverter
 
 
 try:
@@ -24,7 +24,7 @@ class MonoQPD(nn.Module):
         qpdnet_args = args['qpdnet']
         da_v2_args = args['da_v2']
 
-        self.feature_converter = FeatureConverter()
+        self.feature_converter = PixelShuffleConverter()
 
         self.da_v2 = DepthAnythingV2(da_v2_args.encoder)
         self.qpdnet = QPDNet(qpdnet_args)
