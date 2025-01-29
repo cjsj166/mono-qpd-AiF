@@ -47,7 +47,7 @@ class QuadDataset(data.Dataset):
         self.image_set = image_set
         self.randomBright = RandomBrightness()
 
-    def resize_to_224_multiples(self, center_img, lrtb_list, flow, valid):
+    def resize_to_224_multiples(self, center_img, lrtb_list, flow):
         h, w = center_img.shape[-2:]
 
         if h % 224 != 0:
@@ -160,32 +160,6 @@ class QuadDataset(data.Dataset):
 
         if h%224 != 0 or w%224 != 0:
             center_img, lrtb_list, flow, valid = self.resize_to_224_multiples(center_img, lrtb_list, flow, valid)
-
-            
-        # return resized_image
-        
-        # h, w = center_img.shape[1:]
-        # scale_factor = 518 / h        
-
-        # if self.resize is not None:
-        #     center_img = F.interpolate(center_img[None], scale_factor=scale_factor, mode='bilinear', align_corners=False)[0] # Hard coding 768, 1024 to 770, 1027
-        #     flow = F.interpolate(flow[None], scale_factor=scale_factor, mode='bilinear', align_corners=False)[0]
-        #     lrtb_list = F.interpolate(lrtb_list, scale_factor=scale_factor, mode='bilinear', align_corners=False)
-            
-        # h, w = center_img.shape[1:]
-        # crop_size = h // 14 * 14, w // 14 * 14
-        # # crop_size = 756, 1022
-        # h_start = (h - crop_size[0]) // 2
-        # h_end = h_start + crop_size[0]
-        # w_start = (w - crop_size[1]) // 2
-        # w_end = w_start + crop_size[1]
-
-        # center_img = center_img[:, h_start:h_end, w_start:w_end]
-        # lrtb_list = lrtb_list[:, :, h_start:h_end, w_start:w_end]
-        # flow = flow[:, h_start:h_end, w_start:w_end][0]
-        # valid = valid[h_start:h_end, w_start:w_end]
-
-
        
         flow = flow[:1]
 
@@ -244,3 +218,132 @@ def fetch_dataloader(args):
 
     logging.info('Training with %d image pairs' % len(train_dataset))
     return train_loader
+
+
+
+class MDD(QuadDataset):
+    def __init__(self, aug_params=None, root='', image_set='train', resize_ratio = None):
+        super(MDD, self).__init__(aug_params, sparse=False, lrtb='', image_set = image_set)
+
+        self.resize_ratio = resize_ratio
+
+        assert os.path.exists(root)
+        imagel_list = sorted(glob(os.path.join(root, image_set+'_l','source', 'seq_*/*.jpg')))
+        imager_list = sorted(glob(os.path.join(root, image_set+'_r','source', 'seq_*/*.jpg')))
+        imagec_list = sorted(glob(os.path.join(root, image_set+'_c','source', 'seq_*/*.jpg')))
+        depth_list = sorted(glob(os.path.join(root, image_set+'_c','target_depth', 'seq_*/*.TIF')))
+
+        for idx, (imgc, imgl, imgr, depth) in enumerate(zip(imagec_list, imagel_list, imager_list, depth_list)):
+            self.image_list += [ [imgc, imgl, imgr] ]
+            self.disparity_list += [ depth ] # depth
+
+    def resize(self, center_img, lrtb_list, flow, valid):
+        h, w = center_img.shape[-2:]
+
+        new_h, new_w = h // self.resize_ratio, w // self.resize_ratio
+
+        center_img = center_img.unsqueeze(0)
+        center_img = F.interpolate(center_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        lrtb_list = F.interpolate(lrtb_list, size=(new_h, new_w), mode='bilinear', align_corners=False)
+        flow = F.interpolate(flow[None], size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        # Nearest neighbor interpolation for valid
+        valid = F.interpolate(valid[None, None].float(), size=(new_h, new_w), mode='nearest')[0,0].byte()
+
+        # flow = flow * new_w / w
+
+        return center_img, lrtb_list, flow, valid
+    
+    def crop_224_multiples(self, center_img, lrtb_list, flow, valid):
+        h, w = center_img.shape[-2:]
+
+        new_h = (h // 224) * 224
+        new_w = (w // 224) * 224
+
+        # Crop center
+        center_img = center_img[:, (h - new_h) // 2:(h + new_h) // 2, (w - new_w) // 2:(w + new_w) // 2]
+        lrtb_list = lrtb_list[:, :, (h - new_h) // 2:(h + new_h) // 2, (w - new_w) // 2:(w + new_w) // 2]
+        flow = flow[:, (h - new_h) // 2:(h + new_h) // 2, (w - new_w) // 2:(w + new_w) // 2]
+        valid = valid[(h - new_h) // 2:(h + new_h) // 2, (w - new_w) // 2:(w + new_w) // 2]
+
+        return center_img, lrtb_list, flow, valid
+
+
+    def __getitem__(self, index):
+
+        if self.is_test:
+            center_img = frame_utils.read_gen(self.image_list[index][0])
+            center_img = np.array(center_img).astype(np.uint8)[..., :3]
+            center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
+            img_list = []
+
+            for i in range(1,3):
+                img = frame_utils.read_gen(self.image_list[index][i])
+                img = np.array(img).astype(np.uint8)[..., :3]
+                img = torch.from_numpy(img).permute(2, 0, 1).float()
+                img_list.append(img)
+
+            imgs = torch.stack(img_list, dim=0)
+
+            return center_img, imgs
+
+        if not self.init_seed:
+            worker_info = torch.utils.data.get_worker_info()
+            if worker_info is not None:
+                torch.manual_seed(worker_info.id)
+                np.random.seed(worker_info.id)
+                random.seed(worker_info.id)
+                self.init_seed = True
+
+        index = index % len(self.image_list)
+
+        
+        depth = self.disparity_reader(self.disparity_list[index])
+        valid = depth > 0
+        
+        img_list = []
+        for i in range(0,3):
+            
+            img = frame_utils.read_gen(self.image_list[index][i])
+            img = np.array(img).astype(np.uint8)[..., :3]
+            img_list.append(img)
+
+        # grayscale images
+        for i in range(0,3):
+            if len(img_list[i].shape) == 2:
+                img_list[i] = np.tile(img_list[i][...,None], (1, 1, 3))
+            else:
+                img_list[i] = img_list[i][..., :3]
+
+        if self.crop_size is None:
+            h,w,c = img_list[0].shape
+            self.crop_size = [h, w]
+
+        lrtb_list = []
+        center_img = img_list[0]
+        for i in range(1,3):
+            lrtb = img_list[i]
+            lrtb_list.append(lrtb)
+
+        lrtb_list = np.stack(lrtb_list, axis=-1)
+        
+        h, w = center_img.shape[:2]
+
+        center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
+        lrtb_list = torch.from_numpy(lrtb_list).permute(3, 2, 0, 1).float()
+        depth = torch.from_numpy(depth).unsqueeze(0).float()
+
+        h, w = center_img.shape[-2:]
+
+        valid_gt = torch.ones_like(depth).float()[0]
+
+
+        # if h%224 != 0 or w%224 != 0:
+        #     center_img, lrtb_list, depth, valid_gt = self.resize_to_224_multiples(center_img, lrtb_list, depth, valid_gt)
+
+        center_img, lrtb_list, depth, valid_gt = self.resize(center_img, lrtb_list, depth, valid_gt)
+        center_img, lrtb_list, depth, valid_gt = self.crop_224_multiples(center_img, lrtb_list, depth, valid_gt)
+
+        depth = depth[:1]
+        
+        result = self.image_list[index] + [self.disparity_list[index]], center_img, lrtb_list, depth, valid_gt            
+        return result
