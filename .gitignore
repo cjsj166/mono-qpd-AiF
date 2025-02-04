@@ -4,3 +4,4 @@
 **/checkpoints/*
 **/results/
 datasets/
+*.pth
