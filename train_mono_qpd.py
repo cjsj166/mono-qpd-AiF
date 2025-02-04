@@ -155,40 +155,60 @@ def train(args):
     model = MonoQPD(args)
     print("Parameter Count: %d" % count_parameters(model))
 
+    def check_nan(module, name, output):
+        if isinstance(output, tuple) or isinstance(output, list):
+            for o in output:
+                check_nan(module, name, o)
+        else:
+            if torch.isnan(output).any():
+                print(f"⚠ NaN detected in {name}")
+                print(f"⚠ NaN detected in {module.__class__.__name__}")
+
+    def check_nan_hook(name):
+        def check_nan_hook(module, input, output):
+            check_nan(module, name, output)        
+        return check_nan_hook
+
+    for name, layer in model.named_modules():
+        layer.register_forward_hook(check_nan_hook(name))
+
     da_v2_args = args['da_v2']
     args = args['else']
 
     train_loader = datasets.fetch_dataloader(args)
     
-    total_steps = 0
-    optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
+    if args.restore_ckpt_mono_qpd is not None:
+        ckpt = torch.load(args.restore_ckpt_mono_qpd)
+        total_steps = ckpt['total_steps']
+        model.load_state_dict(ckpt['model_state_dict'])
 
-    if args.restore_ckpt_qpd_net is not None:
-    #     assert args.restore_ckpt.endswith(".pth")
-    #     logging.info("Loading checkpoint...")
-    #     total_steps = int((args.restore_ckpt).split('\\')[-1].split("_")[2])+1
-    #     checkpoint = torch.load(args.restore_ckpt)
-    #     # model.load_state_dict(checkpoint, strict=True)
-    #     if 'model_state_dict' in checkpoint and 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint:
-    #         model.load_state_dict(checkpoint['model_state_dict'])
-    #         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    #         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-    #     else:
-    #         model.load_state_dict(checkpoint, strict=True)
-    #         optimizer, scheduler = fetch_optimizer(args, model, total_steps-1)
-    #     logging.info(f"Done loading checkpoint")
-    # else:
-        model.qpdnet.load_state_dict(torch.load(args.restore_ckpt_qpd_net))
+        model = nn.DataParallel(model)
+        model.cuda()
 
-    if da_v2_args.restore_ckpt_da_v2 is not None:
-        model.da_v2.load_state_dict(torch.load(da_v2_args.restore_ckpt_da_v2))
-        
+        optimizer, scheduler = fetch_optimizer(args, model, -1)
+    
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        scheduler.load_state_dict(ckpt['scheduler_state_dict'])
+    else:
+        total_steps = 0
+        optimizer, scheduler = fetch_optimizer(args, model, -1)
+
+        if args.restore_ckpt_qpd_net is not None:
+            model.qpdnet.load_state_dict(torch.load(args.restore_ckpt_qpd_net))
+
+        if da_v2_args.restore_ckpt_da_v2 is not None:
+            model.da_v2.load_state_dict(torch.load(da_v2_args.restore_ckpt_da_v2))
+
+        model = nn.DataParallel(model)
+        model.cuda()
+
+
     if da_v2_args.freeze_da_v2:
-        for param in model.da_v2.parameters():
+        for param in model.module.da_v2.parameters():
             param.requires_grad = False
     
-    model = nn.DataParallel(model)
 
+    # Prepare the save directory
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     save_dir = os.path.join(args.save_path, timestamp)
     model_save_dir = os.path.join(save_dir, 'checkpoints')
@@ -197,6 +217,7 @@ def train(args):
     os.makedirs(model_save_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
+    # Save the arguments
     with open(os.path.join(save_dir, 'args.txt'), 'w') as f:
         for key, value in vars(args).items():
             f.write(f'{key}: {value}\n')
@@ -206,7 +227,6 @@ def train(args):
 
     logger = Logger(model, scheduler, total_steps, log_dir=log_dir)
 
-    model.cuda()
     model.train()
     # model.module.freeze_bn() # We keep BatchNorm frozen
 
@@ -219,14 +239,16 @@ def train(args):
     batch_len = len(train_loader)
     epoch = int(total_steps/batch_len)
 
+    epebest,rmsebest,ai2best = 1000,1000,1000
+    epeepoch,rmseepoch,ai2epoch = 0,0,0
 
-    epebest,rmsebest = 1000,1000
-    epeepoch,rmseepoch = 0,0
     while should_keep_training:
-
         for i_batch, (_, *data_blob) in enumerate(tqdm(train_loader)):
             optimizer.zero_grad()
             center_img, lrtblist, flow, valid = [x.cuda() for x in data_blob]
+
+            assert not torch.isnan(center_img).any(), "Invalid values in input images"
+            assert not torch.isnan(lrtblist).any(), "Invalid values in input images"
 
             b,s,c,h,w = lrtblist.shape
 
@@ -252,11 +274,11 @@ def train(args):
             else:
                 try:
                     loss, metrics = sequence_loss(flow_predictions, flow, valid)
+                    
                 except AssertionError as e:
                     if "Invalid values in flow predictions" in str(e):
-                        print(f"Invalid values in flow predictions, epoch: {epoch}")
+                        print(f"Invalid values in flow predictions, epoch: {epoch}, batch: {i_batch}")
                         continue
-                        
                     else:
                         raise e
                                     
@@ -272,7 +294,6 @@ def train(args):
             scheduler.step()
             scaler.update()
 
-
             logger.push(metrics)
 
             if total_steps % batch_len == 0:# and total_steps != 0:
@@ -287,20 +308,26 @@ def train(args):
                             'model_state_dict': model.module.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'scheduler_state_dict': scheduler.state_dict(),
+                            'total_steps': total_steps,
                             # ... any other states you need
                             }, model_save_path)
                 
                 if total_steps % (batch_len*1) == 0:
                     results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
 
-                if epebest>=results['things-epe']:
-                    epebest = results['things-epe']
+                if epebest>=results['epe']:
+                    epebest = results['epe']
                     epeepoch = epoch
-                if rmsebest>=results['things-rmse']:
-                    rmsebest = results['things-rmse']
+                if rmsebest>=results['rmse']:
+                    rmsebest = results['rmse']
                     rmseepoch = epoch
+                if ai2best>=results['ai2']:
+                    ai2best = results['ai2']
+                    ai2epoch = epoch
+                
                 logging.info(f"Current Best Result epe epoch {epeepoch}, result: {epebest}")
                 logging.info(f"Current Best Result rmse epoch {rmseepoch}, result: {rmsebest}")
+                logging.info(f"Current Best Result ai2 epoch {ai2epoch}, result: {ai2best}")
 
                 logger.write_dict(results)
 
@@ -334,8 +361,9 @@ if __name__ == '__main__':
     parser.add_argument('--name', default='Mono-QPD', help="name your experiment")
     parser.add_argument('--restore_ckpt_da_v2', default=None, help="restore checkpoint")
     parser.add_argument('--restore_ckpt_qpd_net', default=None, help="restore checkpoint")
+    parser.add_argument('--restore_ckpt_mono_qpd', default=None, help="restore checkpoint")
 
-    parser.add_argument('--mixed_precision', action='store_false', help='use mixed precision')
+    parser.add_argument('--mixed_precision', default=False, action='store_true', help='use mixed precision')
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=4, help="batch size used during training.")
@@ -391,12 +419,11 @@ if __name__ == '__main__':
     parser.add_argument('--feature_converter', type=str, default='', help="training datasets.")
     parser.add_argument('--save_path', type=str, help="path to save")
 
-    
     args = parser.parse_args()
 
     # Argument categorization
     da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
-    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path'}
+    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'restore_ckpt_mono_qpd', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path'}
 
     def split_arguments(args):
         args_dict = vars(args)

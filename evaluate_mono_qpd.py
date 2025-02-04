@@ -263,6 +263,8 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
     eval_est = Eval(os.path.join(save_path, 'center'))
 
     for val_id in tqdm(range(val_num)):
+        # if val_id == 2:
+        #     break
 
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
@@ -293,12 +295,15 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         if save_result and val_id%val_save_skip==0:
             if not os.path.exists('result/predictions/'+path+'/'):
                 os.makedirs('result/predictions/'+path+'/')
+        
 
             pth_lists = paths[0].split('/')[-2:]
             pth = '/'.join(pth_lists)
             # pth = os.path.basename(pth)
 
             # fitting and save
+            epe = eval_est.end_point_error(flow_pr, flow_gt)
+            rmse = eval_est.root_mean_squared_error(flow_pr, flow_gt)
             bad0_1, bad0_5, bad1, bad3 = eval_est.ai2_bad_pixel_metrics(flow_pr, flow_gt)
             est_ai1, est_b1 = eval_est.affine_invariant_1(flow_pr, flow_gt)
             est_ai2, est_b2 = eval_est.affine_invariant_2(flow_pr, flow_gt)
@@ -343,42 +348,43 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         flow_pr = torch.from_numpy(flow_pr)
         flow_gt = torch.from_numpy(flow_gt)
 
-        epe = torch.sum((flow_pr - flow_gt)**2, dim=0).sqrt()
-        rmse = torch.sum((flow_pr - flow_gt)**2, dim=0)
-        epe = epe.flatten()
-        rmse = rmse.flatten()
-        val = (valid_gt.flatten() >= 0.5) & (flow_gt.abs().flatten() < 192)
+        # epe = torch.sum((flow_pr - flow_gt)**2, dim=0).sqrt()
+        # rmse = torch.sum((flow_pr - flow_gt)**2, dim=0)
+        # epe = epe.flatten()
+        # rmse = rmse.flatten()
+        # val = (valid_gt.flatten() >= 0.5) & (flow_gt.abs().flatten() < 192)
 
-        epe_list.append(epe[val].mean().item())
-        rmse_list.append(rmse[val].mean().item())
-        out0_1 = (epe > 0.1)
-        out0_1_list.append(out0_1[val].cpu().numpy())
-        out0_5 = (epe > 0.5)
-        out0_5_list.append(out0_5[val].cpu().numpy())
-        out1 = (epe > 1.0)
-        out1_list.append(out1[val].cpu().numpy())
-        out2 = (epe > 2.0)
-        out2_list.append(out2[val].cpu().numpy())
-        out4 = (epe > 4.0)
-        out4_list.append(out4[val].cpu().numpy())
+        # epe_list.append(epe[val].mean().item())
+        # rmse_list.append(rmse[val].mean().item())
+        # out0_1 = (epe > 0.1)
+        # out0_1_list.append(out0_1[val].cpu().numpy())
+        # out0_5 = (epe > 0.5)
+        # out0_5_list.append(out0_5[val].cpu().numpy())
+        # out1 = (epe > 1.0)
+        # out1_list.append(out1[val].cpu().numpy())
+        # out2 = (epe > 2.0)
+        # out2_list.append(out2[val].cpu().numpy())
+        # out4 = (epe > 4.0)
+        # out4_list.append(out4[val].cpu().numpy())
 
     eval_est.save_metrics()
+    result = eval_est.get_mean_metrics()
 
-    epe_list = np.array(epe_list)
-    rmse_list = np.array(rmse_list)
-    out1_list = np.concatenate(out1_list)
+    # epe_list = np.array(epe_list)
+    # rmse_list = np.array(rmse_list)
+    # out1_list = np.concatenate(out1_list)
 
-    epe = np.mean(epe_list)
-    rmse = np.sqrt(np.mean(rmse_list))
-    d01 = 100 * np.mean(out0_1_list)
-    d05 = 100 * np.mean(out0_5_list)
-    d1 = 100 * np.mean(out1_list)
-    d2 = 100 * np.mean(out2_list)
-    d4 = 100 * np.mean(out4_list)
+    # epe = np.mean(epe_list)
+    # rmse = np.sqrt(np.mean(rmse_list))
+    # d01 = 100 * np.mean(out0_1_list)
+    # d05 = 100 * np.mean(out0_5_list)
+    # d1 = 100 * np.mean(out1_list)
+    # d2 = 100 * np.mean(out2_list)
+    # d4 = 100 * np.mean(out4_list)
 
-    print("#######################: epe, rmse, d0.1, d0.5, d1, d2, d4")
-    print("Validation FlyingThings: %f, %f, %f, %f, %f, %f, %f" % (epe, rmse, d01, d05, d1, d2, d4))
-    return {'things-epe': epe, 'things-rmse': rmse, 'things-d0.1': d01, 'things-d0.5': d05, 'things-d1': d1, 'things-d2': d2, 'things-d4': d4}
+    # print("#######################: epe, rmse, d0.1, d0.5, d1, d2, d4")
+    # print("Validation FlyingThings: %f, %f, %f, %f, %f, %f, %f" % (epe, rmse, d01, d05, d1, d2, d4))
+    return result
 
 
 if __name__ == '__main__':
