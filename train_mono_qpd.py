@@ -178,6 +178,8 @@ def train(args):
     train_loader = datasets.fetch_dataloader(args)
     
     if args.restore_ckpt_mono_qpd is not None:
+        assert os.path.exists(args.restore_ckpt_mono_qpd)
+
         ckpt = torch.load(args.restore_ckpt_mono_qpd)
         total_steps = ckpt['total_steps']
         model.load_state_dict(ckpt['model_state_dict'])
