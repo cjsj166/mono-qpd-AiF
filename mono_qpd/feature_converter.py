@@ -65,7 +65,28 @@ class ConvConverter(nn.Module):
     def __init__(self):
         super(ConvConverter, self).__init__()
 
-        self.basic_shuffle = nn.PixelShuffle(2)
+        self.trans_conv1 = nn.ConvTranspose2d(1024, 1024, kernel_size=7, stride=7)
+        self.trans_conv2 = nn.ConvTranspose2d(1024, 1024, kernel_size=7, stride=7)
+        self.trans_conv3 = nn.ConvTranspose2d(1024, 1024, kernel_size=7, stride=7)
+
+        self.basic_conv1 = nn.Sequential(
+            nn.Conv2d(1024, 512, 3, padding=1, stride=(1, 1)),
+            nn.Conv2d(512, 256, 3, padding=1, stride=(1, 1))
+        )
+
+        self.basic_conv2 = nn.Sequential(
+            nn.Conv2d(1024, 512, 3, padding=1, stride=(1, 1)),
+            nn.Conv2d(512, 256, 3, padding=1, stride=(1, 1))
+        )
+
+        self.basic_conv3 = nn.Sequential(
+            nn.Conv2d(1024, 512, 3, padding=1, stride=(1, 1)),
+            nn.Conv2d(512, 256, 3, padding=1, stride=(1, 1))
+        )
+
+        self.relu1_1 = nn.ReLU()
+        self.relu2_1 = nn.ReLU()
+        self.relu3_1 = nn.ReLU()        
 
         self.conv1 = nn.Conv2d(256, 128, 3, padding=(1,1), stride=(2,2)) # Biggest resolution
         self.conv2 = nn.Sequential(
@@ -76,35 +97,34 @@ class ConvConverter(nn.Module):
             nn.Conv2d(256, 128, 3, padding=(1,1), stride=(2,2)),
             nn.Conv2d(128, 128, 3, padding=(1,1), stride=(2,2)),
             nn.Conv2d(128, 128, 3, padding=(1,1), stride=(2,2))
-        )
-        
+        )        
 
-        self.relu1 = nn.ReLU()
-        self.relu2 = nn.ReLU()
-        self.relu3 = nn.ReLU()
+        self.relu1_2 = nn.ReLU()
+        self.relu2_2 = nn.ReLU()
+        self.relu3_2 = nn.ReLU()
 
     def forward(self, x):
         x1, x2, x3 = x
-        x1 = self.basic_shuffle(x1)
-        x2 = self.basic_shuffle(x2)
-        x3 = self.basic_shuffle(x3)
 
-        # x1 = self.adapool1(x1)
-        # x2 = self.adapool2(x2)
-        # x3 = self.adapool3(x3)
+        x1 = self.trans_conv1(x1)
+        x2 = self.trans_conv2(x2)
+        x3 = self.trans_conv3(x3)
 
-        patch_h, patch_w = x1.shape[2] // 2, x1.shape[3] // 2
-        x1 = nn.functional.interpolate(x1, size=(7*patch_h, 7*patch_w), mode='bilinear', align_corners=False)
-        x2 = nn.functional.interpolate(x2, size=(7*patch_h, 7*patch_w), mode='bilinear', align_corners=False)
-        x3 = nn.functional.interpolate(x3, size=(7*patch_h, 7*patch_w), mode='bilinear', align_corners=False)
+        x1 = self.basic_conv1(x1)
+        x2 = self.basic_conv2(x2)
+        x3 = self.basic_conv3(x3)
+
+        x1 = self.relu1_1(x1)
+        x2 = self.relu2_1(x2)
+        x3 = self.relu3_1(x3)
 
         x1 = self.conv1(x1)
         x2 = self.conv2(x2)
         x3 = self.conv3(x3)
 
-        x1 = self.relu1(x1)
-        x2 = self.relu2(x2)
-        x3 = self.relu3(x3)
+        x1 = self.relu1_2(x1)
+        x2 = self.relu2_2(x2)
+        x3 = self.relu3_2(x3)
 
         return [x1, x2, x3]
 
