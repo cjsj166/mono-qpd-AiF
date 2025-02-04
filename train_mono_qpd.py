@@ -20,6 +20,8 @@ from argparse import Namespace
 
 from evaluate_mono_qpd import validate_QPD
 
+from datetime import datetime
+
 
 try:
     from torch.cuda.amp import GradScaler
@@ -55,7 +57,7 @@ def sequence_loss(flow_preds, flow_gt, valid, loss_gamma=0.9, max_flow=700):
     assert not torch.isinf(flow_gt[valid.bool()]).any()
 
     for i in range(n_predictions):
-        assert not torch.isnan(flow_preds[i]).any() and not torch.isinf(flow_preds[i]).any()
+        assert not torch.isnan(flow_preds[i]).any() and not torch.isinf(flow_preds[i]).any(), "Invalid values in flow predictions"
         # We adjust the loss_gamma so it is consistent for any number of RAFT-Stereo iterations
         adjusted_loss_gamma = loss_gamma**(15/(n_predictions - 1))
         i_weight = adjusted_loss_gamma**(n_predictions - i - 1)
@@ -102,12 +104,12 @@ class Logger:
 
     SUM_FREQ = 100
 
-    def __init__(self, model, scheduler, total_steps):
+    def __init__(self, model, scheduler, total_steps, log_dir='result/runs'):
         self.model = model
         self.scheduler = scheduler
         self.total_steps = total_steps
         self.running_loss = {}
-        self.writer = SummaryWriter(log_dir='result/runs')
+        self.writer = SummaryWriter(log_dir=log_dir)
 
     def _print_training_status(self):
         metrics_data = [self.running_loss[k]/Logger.SUM_FREQ for k in sorted(self.running_loss.keys())]
@@ -147,15 +149,14 @@ class Logger:
     def close(self):
         self.writer.close()
 
-
+# args.txt 만들기, runs timestamp폴더
 def train(args):
 
-    # model = nn.DataParallel(QPDNet(args))
     model = MonoQPD(args)
     print("Parameter Count: %d" % count_parameters(model))
 
     da_v2_args = args['da_v2']
-    args = args['qpdnet']
+    args = args['else']
 
     train_loader = datasets.fetch_dataloader(args)
     
@@ -187,8 +188,23 @@ def train(args):
             param.requires_grad = False
     
     model = nn.DataParallel(model)
-    
-    logger = Logger(model, scheduler, total_steps)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    save_dir = os.path.join(args.save_path, timestamp)
+    model_save_dir = os.path.join(save_dir, 'checkpoints')
+    log_dir = os.path.join(save_dir, 'runs')
+
+    os.makedirs(model_save_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+
+    with open(os.path.join(save_dir, 'args.txt'), 'w') as f:
+        for key, value in vars(args).items():
+            f.write(f'{key}: {value}\n')
+        f.write('\n')
+        for key, value in vars(da_v2_args).items():
+            f.write(f'{key}: {value}\n')
+
+    logger = Logger(model, scheduler, total_steps, log_dir=log_dir)
 
     model.cuda()
     model.train()
@@ -218,7 +234,6 @@ def train(args):
             if args.input_image_num == 4:
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1],lrtblist[:,2],lrtblist[:,3]], dim=0).contiguous()
             else:
-
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1]], dim=0).contiguous()
 
             assert model.training
@@ -235,34 +250,48 @@ def train(args):
                     rot_flow_predictions.append(torch.rot90(flow_predictions[i], k=1, dims=[2,3]))   
                 loss, metrics = sequence_loss(rot_flow_predictions, flow, valid)
             else:
-                loss, metrics = sequence_loss(flow_predictions, flow, valid)
+                try:
+                    loss, metrics = sequence_loss(flow_predictions, flow, valid)
+                except AssertionError as e:
+                    if "Invalid values in flow predictions" in str(e):
+                        print(f"Invalid values in flow predictions, epoch: {epoch}")
+                        continue
+                        
+                    else:
+                        raise e
+                                    
             logger.writer.add_scalar("live_loss", loss.item(), global_batch_num)
             logger.writer.add_scalar(f'learning_rate', optimizer.param_groups[0]['lr'], global_batch_num)
             global_batch_num += 1
+
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-            scaler.step(optimizer)
+            scaler.step(optimizer)                        
             scheduler.step()
             scaler.update()
+
 
             logger.push(metrics)
 
             if total_steps % batch_len == 0:# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
-                save_path = Path('result/checkpoints/%d_epoch_%d_%s.pth' % (epoch, total_steps + 1, args.name))
+                
+                model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps + 1}_{args.name}.pth')
+                model_save_path = Path(model_save_path).absolute()
+
                 print('checkpoints/%d_epoch_%d_%s' % (epoch, total_steps + 1, args.name))
-                logging.info(f"Saving file {save_path.absolute()}")
+                logging.info(f"Saving file {model_save_path}")
                 torch.save({
                             'model_state_dict': model.module.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'scheduler_state_dict': scheduler.state_dict(),
                             # ... any other states you need
-                            }, save_path)
+                            }, model_save_path)
                 
                 if total_steps % (batch_len*1) == 0:
-                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path)
+                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
 
                 if epebest>=results['things-epe']:
                     epebest = results['things-epe']
@@ -285,18 +314,18 @@ def train(args):
                 break
 
         if len(train_loader) >= 10000:
-            save_path = Path('result/checkpoints/%d_epoch_%d_%s.pth.gz' % (epoch, total_steps + 1, args.name))
+            model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps + 1}_{args.name}.pth.gz')
             print()
-            logging.info(f"Saving file {save_path}")
-            torch.save(model.module.state_dict(), save_path)
+            logging.info(f"Saving file {model_save_path}")
+            torch.save(model.module.state_dict(), model_save_path)
 
 
     print("FINISHED TRAINING")
     logger.close()
-    PATH = 'result/checkpoints/%s.pth' % args.name
-    torch.save(model.module.state_dict(), PATH)
+    model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{args.name}.pth')
+    torch.save(model.module.state_dict(), model_save_path)
 
-    return PATH
+    return model_save_path
 
 
 if __name__ == '__main__':
@@ -343,9 +372,6 @@ if __name__ == '__main__':
     parser.add_argument('--spatial_scale', type=float, nargs='+', default=[0, 0], help='re-scale the images randomly')
     parser.add_argument('--noyjitter', action='store_true', help='don\'t simulate imperfect rectification')
     
-
-
-    
     # Depth Anything V2
     parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
     # parser.add_argument('--dataset', default='hypersim', choices=['QPD'])
@@ -360,24 +386,26 @@ if __name__ == '__main__':
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--freeze_da_v2', action='store_true')
     parser.add_argument('--port', default=None, type=int)
+
+    # mono qpd parameters
+    parser.add_argument('--feature_converter', type=str, default='', help="training datasets.")
+    parser.add_argument('--save_path', type=str, help="path to save")
+
     
     args = parser.parse_args()
 
     # Argument categorization
     da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
-
-
-    # class ArgsNamespace:
-    #     def __init__(self, **entries):
-    #         self.__dict__.update(entries)
+    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path'}
 
     def split_arguments(args):
         args_dict = vars(args)
         da_v2_args = {key: args_dict[key] for key in da_v2_keys if key in args_dict}
-        qpdnet_args = {key: args_dict[key] for key in args_dict if key not in da_v2_keys}
+        else_args = {key: args_dict[key] for key in args_dict if key in else_keys}
+
         return {
             'da_v2': Namespace(**da_v2_args),
-            'qpdnet': Namespace(**qpdnet_args)
+            'else': Namespace(**else_args),
         }
 
     # Split arguments
@@ -390,7 +418,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 
-    Path("result/checkpoints").mkdir(exist_ok=True, parents=True)
-    Path("result/predictions").mkdir(exist_ok=True, parents=True)
-
+    # Path("result/checkpoints").mkdir(exist_ok=True, parents=True)
+    # Path("result/predictions").mkdir(exist_ok=True, parents=True)
+    
     train(split_args)

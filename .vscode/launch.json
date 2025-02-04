@@ -52,7 +52,11 @@
                 // "2",
                 "--datasets_path",
                 "/mnt/d/Mono+Dual/QP-Data",
-                "--freeze_da_v2"
+                "--freeze_da_v2",
+                "--save_path",
+                "result/train/",
+                "--feature_converter",
+                "conv",
             ]
         },
 
@@ -72,6 +76,26 @@
             ]
         },
 
+        {
+            "name": "Mono-QPD, 10 epochs, eval, dpdisp",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/checkpoints/10_epoch_15051_Mono-QPD.pth",
+                "--datasets_path",
+                "/mnt/d/dual-pixel-dataset/MDD_dataset",
+                "--dataset",
+                "MDD",
+                "--save_path",
+                "result/eval/10_epoch_15051_Mono-QPD",
+                "--feature_converter",
+                "pixelshuffle",
+            ]
+        },
+
         
         {
             "name": "Mono-QPD, 20 epochs, eval, dpdisp",
@@ -87,7 +111,29 @@
                 "--dataset",
                 "MDD",
                 "--save_path",
-                "result/eval/20_epoch_30101_Mono-QPD"
+                "result/eval/20_epoch_30101_Mono-QPD",
+                "--feature_converter",
+                "pixelshuffle",
+            ]
+        },
+
+        {
+            "name": "Mono-QPD, 20 epochs, eval, qpd-test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/checkpoints/20_epoch_30101_Mono-QPD.pth",
+                "--datasets_path",
+                "/mnt/d/Mono+Dual/QP-Data",
+                "--dataset",
+                "QPD",
+                "--save_path",
+                "result/eval/qpd-test/20_epoch_30101_Mono-QPD",
+                "--feature_converter",
+                "pixelshuffle",
             ]
         },
 
