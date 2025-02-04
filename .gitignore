@@ -1,6 +1,7 @@
 **/__pycache__/
 **/*.pyc
 **/result/
-**/checkpoints/*
+# **/checkpoints/*
 **/results/
 datasets/
+# *.pth
