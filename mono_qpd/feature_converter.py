@@ -58,7 +58,6 @@ class PixelShuffleConverter(nn.Module):
         x1 = self.relu1(x1)
         x2 = self.relu2(x2)
         x3 = self.relu3(x3)
-
         return [x1, x2, x3]
 
 class ConvConverter(nn.Module):

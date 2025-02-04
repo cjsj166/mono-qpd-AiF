@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mono_qpd.QPDNet.qpd_net import QPDNet
 from mono_qpd.Depth_Anything_V2.depth_anything_v2.dpt import DepthAnythingV2
-from mono_qpd.feature_converter import PixelShuffleConverter
+from mono_qpd.feature_converter import PixelShuffleConverter, ConvConverter
 
 
 try:
@@ -21,13 +21,16 @@ except:
 class MonoQPD(nn.Module):
     def __init__(self, args):
         super().__init__()
-        qpdnet_args = args['qpdnet']
+        else_args = args['else']
         da_v2_args = args['da_v2']
 
-        self.feature_converter = PixelShuffleConverter()
+        if else_args.feature_converter == 'pixelshuffle':
+            self.feature_converter = PixelShuffleConverter()
+        elif else_args.feature_converter == 'conv':
+            self.feature_converter = ConvConverter()
 
         self.da_v2 = DepthAnythingV2(da_v2_args.encoder)
-        self.qpdnet = QPDNet(qpdnet_args)
+        self.qpdnet = QPDNet(else_args)
 
     def resize_to_14_multiples(self, image):
         h, w = image.shape[2], image.shape[3]

@@ -47,7 +47,7 @@ class QuadDataset(data.Dataset):
         self.image_set = image_set
         self.randomBright = RandomBrightness()
 
-    def resize_to_224_multiples(self, center_img, lrtb_list, flow):
+    def resize_to_224_multiples(self, center_img, lrtb_list, flow, valid):
         h, w = center_img.shape[-2:]
 
         if h % 224 != 0:
