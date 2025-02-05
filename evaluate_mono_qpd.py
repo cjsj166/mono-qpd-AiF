@@ -168,8 +168,8 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
     eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['ai1', 'ai2', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_5px', 'ai2_bad_10px'])
 
     for val_id in tqdm(range(val_num)):
-        if val_id == 2:
-            break
+        # if val_id == 2:
+        #     break
         
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         
@@ -274,8 +274,8 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
     eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['epe', 'rmse', 'ai1', 'ai2', 'ai2_bad_0_01px', 'ai2_bad_0_05px', 'ai2_bad_0_1px', 'ai2_bad_0_5px'])
 
     for val_id in tqdm(range(val_num)):
-        if val_id == 2:
-            break
+        # if val_id == 2:
+        #     break
 
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
