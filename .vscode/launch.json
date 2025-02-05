@@ -32,7 +32,6 @@
             ]
         },
 
-
         {
             "name": "MonoQPD, train, qpd-train, conv",
             "type": "debugpy",
@@ -53,8 +52,40 @@
                 "result/train/",
                 "--feature_converter",
                 "conv",
+                // "--stop_step",
+                // "100"
             ]
         },
+
+
+        
+        {
+            "name": "MonoQPD, resume train, qpd-train, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--batch_size",
+                "1",
+                // "--restore_ckpt_da_v2",
+                // "mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth",
+                "--restore_ckpt_mono_qpd",
+                "result/train/20250205_150404/checkpoints/0_epoch_100_Mono-QPD.pth",
+                "--image_size",
+                "224", "224",
+                "--datasets_path",
+                "datasets/QP-Data",
+                "--freeze_da_v2",
+                "--save_path",
+                "result/train/",
+                "--feature_converter",
+                "conv",
+                "--stop_step",
+                "200"
+            ]
+        },
+
 
         {
             "name": "MonoQPD, train, qpd-train, conv, tsubame",

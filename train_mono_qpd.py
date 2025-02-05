@@ -301,13 +301,15 @@ def train(args):
 
             logger.push(metrics)
 
-            if total_steps % batch_len == 0:# and total_steps != 0:
+            total_steps += 1
+
+            if total_steps % batch_len == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
                 
-                model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps + 1}_{args.name}.pth')
+                model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps}_{args.name}.pth')
                 model_save_path = Path(model_save_path).absolute()
 
-                print('checkpoints/%d_epoch_%d_%s' % (epoch, total_steps + 1, args.name))
+                print('checkpoints/%d_epoch_%d_%s' % (epoch, total_steps, args.name))
                 logging.info(f"Saving file {model_save_path}")
                 torch.save({
                             'model_state_dict': model.module.state_dict(),
@@ -319,49 +321,47 @@ def train(args):
                 
                 if total_steps % (batch_len*1) == 0:
                     results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+                        
+                    if qpd_epebest>=results['epe']:
+                        qpd_epebest = results['epe']
+                        qpd_epeepoch = epoch
+                    if qpd_rmsebest>=results['rmse']:
+                        qpd_rmsebest = results['rmse']
+                        qpd_rmseepoch = epoch
+                    if qpd_ai2best>=results['ai2']:
+                        qpd_ai2best = results['ai2']
+                        qpd_ai2epoch = epoch
                     
-                if qpd_epebest>=results['epe']:
-                    qpd_epebest = results['epe']
-                    qpd_epeepoch = epoch
-                if qpd_rmsebest>=results['rmse']:
-                    qpd_rmsebest = results['rmse']
-                    qpd_rmseepoch = epoch
-                if qpd_ai2best>=results['ai2']:
-                    qpd_ai2best = results['ai2']
-                    qpd_ai2epoch = epoch
-                
-                
-                named_results = {}
-                for k, v in results.items():
-                    named_results[f'val_qpd/{k}'] = v
+                    
+                    named_results = {}
+                    for k, v in results.items():
+                        named_results[f'val_qpd/{k}'] = v
 
-                logger.write_dict(named_results)
+                    logger.write_dict(named_results)
 
-                logging.info(f"Current Best Result qpd epe epoch {qpd_epeepoch}, result: {qpd_epebest}")
-                logging.info(f"Current Best Result qpd rmse epoch {qpd_rmseepoch}, result: {qpd_rmsebest}")
-                logging.info(f"Current Best Result qpd ai2 epoch {qpd_ai2epoch}, result: {qpd_ai2best}")
+                    logging.info(f"Current Best Result qpd epe epoch {qpd_epeepoch}, result: {qpd_epebest}")
+                    logging.info(f"Current Best Result qpd rmse epoch {qpd_rmseepoch}, result: {qpd_rmsebest}")
+                    logging.info(f"Current Best Result qpd ai2 epoch {qpd_ai2epoch}, result: {qpd_ai2best}")
 
-                results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+                    results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
 
-                
-                if dpdisp_ai2best>=results['ai2']:
-                    dpdisp_ai2best = results['ai2']
-                    dpdisp_ai2epoch = epoch
-                
-                logging.info(f"Current Best Result dpdisp epe epoch {dpdisp_epeepoch}, result: {dpdisp_epebest}")
-                logging.info(f"Current Best Result dpdisp rmse epoch {dpdisp_rmseepoch}, result: {dpdisp_rmsebest}")
-                logging.info(f"Current Best Result dpdisp ai2 epoch {dpdisp_ai2epoch}, result: {dpdisp_ai2best}")
-                
-                named_results = {}
-                for k, v in results.items():
-                    named_results[f'val_dpdisp/{k}'] = v
-                
-                logger.write_dict(named_results)
+                    
+                    if dpdisp_ai2best>=results['ai2']:
+                        dpdisp_ai2best = results['ai2']
+                        dpdisp_ai2epoch = epoch
+                    
+                    logging.info(f"Current Best Result dpdisp epe epoch {dpdisp_epeepoch}, result: {dpdisp_epebest}")
+                    logging.info(f"Current Best Result dpdisp rmse epoch {dpdisp_rmseepoch}, result: {dpdisp_rmsebest}")
+                    logging.info(f"Current Best Result dpdisp ai2 epoch {dpdisp_ai2epoch}, result: {dpdisp_ai2best}")
+                    
+                    named_results = {}
+                    for k, v in results.items():
+                        named_results[f'val_dpdisp/{k}'] = v
+                    
+                    logger.write_dict(named_results)
 
-                model.train()
-                # model.module.freeze_bn()
-
-            total_steps += 1
+                    model.train()
+                    # model.module.freeze_bn()
 
             if total_steps > args.num_steps or (args.stop_step is not None and total_steps > args.stop_step):
                 should_keep_training = False
