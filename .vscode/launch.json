@@ -119,7 +119,129 @@
         },
 
         {
-            "name": "Mono-QPD, 10 epochs, eval, dpdisp",
+            "name": "Mono-QPD, 5 epochs, eval, qpd-test, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/5_epoch_7526_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/QP-Data",
+                "--dataset",
+                "QPD",
+                "--save_path",
+                "result/eval/conv/qpd-test/5_epoch_7526_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+        {
+            "name": "Mono-QPD, 5 epochs, eval, dpdisp, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/5_epoch_7526_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/MDD_dataset",
+                "--dataset",
+                "MDD",
+                "--save_path",
+                "result/eval/conv/dp-disp/5_epoch_7526_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+        {
+            "name": "Mono-QPD, 15 epochs, eval, qpd-test, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/15_epoch_22576_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/QP-Data",
+                "--dataset",
+                "QPD",
+                "--save_path",
+                "result/eval/conv/qpd-test/15_epoch_22576_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+
+        {
+            "name": "Mono-QPD, 10 epochs, eval, dpdisp, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/10_epoch_15051_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/MDD_dataset",
+                "--dataset",
+                "MDD",
+                "--save_path",
+                "result/eval/conv/dp-disp/10_epoch_15051_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+        {
+            "name": "Mono-QPD, 15 epochs, eval, qpd-test, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/15_epoch_22576_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/QP-Data",
+                "--dataset",
+                "QPD",
+                "--save_path",
+                "result/eval/conv/qpd-test/15_epoch_22576_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+
+        {
+            "name": "Mono-QPD, 15 epochs, eval, dpdisp, conv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "evaluate_mono_qpd.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--restore_ckpt",
+                "result/train/20250205_043932/checkpoints/15_epoch_22576_Mono-QPD.pth",
+                "--datasets_path",
+                "datasets/MDD_dataset",
+                "--dataset",
+                "MDD",
+                "--save_path",
+                "result/eval/conv/dp-disp/15_epoch_22576_Mono-QPD",
+                "--feature_converter",
+                "conv",
+            ]
+        },
+
+        {
+            "name": "Mono-QPD, 10 epochs, eval, dpdisp, pixelshuffle",
             "type": "debugpy",
             "request": "launch",
             "program": "evaluate_mono_qpd.py",
@@ -140,7 +262,7 @@
 
         
         {
-            "name": "Mono-QPD, 20 epochs, eval, dpdisp",
+            "name": "Mono-QPD, 20 epochs, eval, dpdisp, pixelshuffle",
             "type": "debugpy",
             "request": "launch",
             "program": "evaluate_mono_qpd.py",

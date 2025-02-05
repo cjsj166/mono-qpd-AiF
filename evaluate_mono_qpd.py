@@ -21,7 +21,16 @@ from mono_qpd.mono_qpd import MonoQPD
 from argparse import Namespace
 import torch.nn as nn
 
-from evaluation.eval import Eval
+from metrics.eval import Eval
+from collections import OrderedDict
+
+def fix_key(state_dict):
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            k = k[7:]
+        new_state_dict[k] = v
+    return new_state_dict
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -156,11 +165,11 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
     if val_num==None:
         val_num = len(val_dataset)
 
-    eval_est = Eval(os.path.join(save_path, 'center'))
+    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['ai1', 'ai2', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_5px', 'ai2_bad_10px'])
 
     for val_id in tqdm(range(val_num)):
-        # if val_id == 2:
-        #     break
+        if val_id == 2:
+            break
         
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         
@@ -202,20 +211,19 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
             # Set range
             vrng = flow_gt.max() - flow_gt.min()
-            # vmin, vmax = flow_gt.min() - vrng * 0.1, flow_gt.max() + vrng * 0.1
-            # vmin_err, vmax_err = 0, vrng * 0.1
+            vmin, vmax = flow_gt.min() - vrng * 0.3, flow_gt.max() + vrng * 0.3
+            vmin_err, vmax_err = 0, vrng * 0.3
             # vmin, vmax = 0, 1.5
 
-            vmin, vmax = np.min([est_ai2_fit, flow_gt]), np.max([est_ai2_fit, flow_gt])
-            vmin_err, vmax_err = np.min([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit]), np.max([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit])            
+            # vmin, vmax = np.min([est_ai2_fit, flow_gt]), np.max([est_ai2_fit, flow_gt])
+            # vmin_err, vmax_err = np.min([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit]), np.max([est_ai2_fit - flow_gt, flow_gt - est_ai2_fit])            
 
             # print(vmin, vmax, vmin_err, vmax_err)
 
-            vmin, vmax = -50, 300
-            vmin_err, vmax_err = 0, 300
+            # vmin, vmax = -50, 300
+            # vmin_err, vmax_err = 0, 300
 
             eval_est.add_colorrange(vmin, vmax)
-
 
             # Save in colormap
             plt.imsave(os.path.join(est_dir, pth), est_ai2_fit.squeeze(), cmap='jet', vmin=vmin, vmax=vmax)        
@@ -225,7 +233,10 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
             plt.imsave(os.path.join(src_dir, pth), image1.astype(np.uint8))
 
     eval_est.save_metrics()
-    return None
+    result = eval_est.get_mean_metrics()
+
+
+    return result
 
 
 @torch.no_grad()
@@ -260,11 +271,11 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
     path = os.path.basename(os.path.dirname(path))
 
-    eval_est = Eval(os.path.join(save_path, 'center'))
+    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['epe', 'rmse', 'ai1', 'ai2', 'ai2_bad_0_01px', 'ai2_bad_0_05px', 'ai2_bad_0_1px', 'ai2_bad_0_5px'])
 
     for val_id in tqdm(range(val_num)):
-        # if val_id == 2:
-        #     break
+        if val_id == 2:
+            break
 
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
@@ -331,59 +342,14 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
             plt.imsave(os.path.join(gt_dir, pth), flow_gt.squeeze(), cmap='jet', vmin=vmin, vmax=vmax)
             plt.imsave(os.path.join(src_dir, pth), image1.astype(np.uint8))
 
-            
-            # flow_gtn = flow_gt.cpu().numpy().squeeze()
-            # flow_range = flow_gtn.max()-flow_gtn.min()
-            # flow_max = flow_gtn.max()+flow_range*0.2
-            # flow_min = flow_gtn.min()-flow_range*0.2
-            # flow_prn = flow_pr.cpu().numpy().squeeze()
-
-            # np.save('result/predictions/'+path+'/'+ str(val_id)+".npy", flow_prn)
-            # np.save('result/predictions/'+path+'/'+ str(val_id)+"-gt.npy", flow_gtn)
-            # show_colormap(flow_prn, 'result/predictions/'+path+'/'+ str(val_id)+".png", [flow_min, flow_max], 200, (12,10))
-            # show_colormap(flow_gtn, 'result/predictions/'+path+'/'+ str(val_id)+"-gt.png", [flow_min, flow_max], 200, (12,10))
-            # show_colormap(np.abs(flow_gtn-flow_prn), 'result/predictions/'+path+'/'+ str(val_id)+"-error.png", [0, 0.2], 200, (12,10))
         
 
         flow_pr = torch.from_numpy(flow_pr)
         flow_gt = torch.from_numpy(flow_gt)
 
-        # epe = torch.sum((flow_pr - flow_gt)**2, dim=0).sqrt()
-        # rmse = torch.sum((flow_pr - flow_gt)**2, dim=0)
-        # epe = epe.flatten()
-        # rmse = rmse.flatten()
-        # val = (valid_gt.flatten() >= 0.5) & (flow_gt.abs().flatten() < 192)
-
-        # epe_list.append(epe[val].mean().item())
-        # rmse_list.append(rmse[val].mean().item())
-        # out0_1 = (epe > 0.1)
-        # out0_1_list.append(out0_1[val].cpu().numpy())
-        # out0_5 = (epe > 0.5)
-        # out0_5_list.append(out0_5[val].cpu().numpy())
-        # out1 = (epe > 1.0)
-        # out1_list.append(out1[val].cpu().numpy())
-        # out2 = (epe > 2.0)
-        # out2_list.append(out2[val].cpu().numpy())
-        # out4 = (epe > 4.0)
-        # out4_list.append(out4[val].cpu().numpy())
-
     eval_est.save_metrics()
     result = eval_est.get_mean_metrics()
 
-    # epe_list = np.array(epe_list)
-    # rmse_list = np.array(rmse_list)
-    # out1_list = np.concatenate(out1_list)
-
-    # epe = np.mean(epe_list)
-    # rmse = np.sqrt(np.mean(rmse_list))
-    # d01 = 100 * np.mean(out0_1_list)
-    # d05 = 100 * np.mean(out0_5_list)
-    # d1 = 100 * np.mean(out1_list)
-    # d2 = 100 * np.mean(out2_list)
-    # d4 = 100 * np.mean(out4_list)
-
-    # print("#######################: epe, rmse, d0.1, d0.5, d1, d2, d4")
-    # print("Validation FlyingThings: %f, %f, %f, %f, %f, %f, %f" % (epe, rmse, d01, d05, d1, d2, d4))
     return result
 
 
@@ -410,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', default='result/predictions/')
     parser.add_argument('--save_result', default='True')
 
-        
+
     # Depth Anything V2
     parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
     parser.add_argument('--feature_converter', type=str, default='', help="training datasets.")
@@ -441,8 +407,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s')
 
-    # Delete after mdoel is properly saved
-    model = nn.DataParallel(model)
 
     if args.restore_ckpt is not None:
         assert args.restore_ckpt.endswith(".pth")
@@ -450,13 +414,18 @@ if __name__ == '__main__':
         checkpoint = torch.load(args.restore_ckpt)
         # model.load_state_dict(checkpoint, strict=True)
         if 'model_state_dict' in checkpoint and 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
+            c={}
+            c['model_state_dict'] = fix_key(checkpoint['model_state_dict'])
+            model.load_state_dict(c['model_state_dict'])
         else:
             model.load_state_dict(checkpoint, strict=True)
         logging.info(f"Done loading checkpoint")
 
     # Delete after mdoel is properly saved
-    model = model.module
+    model = nn.DataParallel(model)
+
+    # # Delete after mdoel is properly saved
+    # model = model.module
 
 
     model.cuda()

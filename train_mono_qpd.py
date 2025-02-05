@@ -12,13 +12,14 @@ import torch.nn as nn
 import torch.optim as optim
 # from QPDNet.qpd_net import QPDNet
 from mono_qpd.mono_qpd import MonoQPD
+import os
 
-from evaluate_quad import *
+from evaluate_mono_qpd import *
 import mono_qpd.QPDNet.Quad_datasets as datasets
 
 from argparse import Namespace
 
-from evaluate_mono_qpd import validate_QPD
+from evaluate_mono_qpd import validate_QPD, validate_MDD
 
 from datetime import datetime
 
@@ -241,8 +242,10 @@ def train(args):
     batch_len = len(train_loader)
     epoch = int(total_steps/batch_len)
 
-    epebest,rmsebest,ai2best = 1000,1000,1000
-    epeepoch,rmseepoch,ai2epoch = 0,0,0
+    qpd_epebest,qpd_rmsebest,qpd_ai2best = 1000,1000,1000
+    qpd_epeepoch,qpd_rmseepoch,qpd_ai2epoch = 0,0,0
+    dpdisp_epebest,dpdisp_rmsebest,dpdisp_ai2best = 1000,1000,1000
+    dpdisp_epeepoch,dpdisp_rmseepoch,dpdisp_ai2epoch = 0,0,0
 
     while should_keep_training:
         for i_batch, (_, *data_blob) in enumerate(tqdm(train_loader)):
@@ -315,30 +318,52 @@ def train(args):
                             }, model_save_path)
                 
                 if total_steps % (batch_len*1) == 0:
-                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=True, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
-
-                if epebest>=results['epe']:
-                    epebest = results['epe']
-                    epeepoch = epoch
-                if rmsebest>=results['rmse']:
-                    rmsebest = results['rmse']
-                    rmseepoch = epoch
-                if ai2best>=results['ai2']:
-                    ai2best = results['ai2']
-                    ai2epoch = epoch
+                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+                    
+                if qpd_epebest>=results['epe']:
+                    qpd_epebest = results['epe']
+                    qpd_epeepoch = epoch
+                if qpd_rmsebest>=results['rmse']:
+                    qpd_rmsebest = results['rmse']
+                    qpd_rmseepoch = epoch
+                if qpd_ai2best>=results['ai2']:
+                    qpd_ai2best = results['ai2']
+                    qpd_ai2epoch = epoch
                 
-                logging.info(f"Current Best Result epe epoch {epeepoch}, result: {epebest}")
-                logging.info(f"Current Best Result rmse epoch {rmseepoch}, result: {rmsebest}")
-                logging.info(f"Current Best Result ai2 epoch {ai2epoch}, result: {ai2best}")
+                
+                named_results = {}
+                for k, v in results.items():
+                    named_results[f'val_qpd/{k}'] = v
 
-                logger.write_dict(results)
+                logger.write_dict(named_results)
+
+                logging.info(f"Current Best Result qpd epe epoch {qpd_epeepoch}, result: {qpd_epebest}")
+                logging.info(f"Current Best Result qpd rmse epoch {qpd_rmseepoch}, result: {qpd_rmsebest}")
+                logging.info(f"Current Best Result qpd ai2 epoch {qpd_ai2epoch}, result: {qpd_ai2best}")
+
+                results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+
+                
+                if dpdisp_ai2best>=results['ai2']:
+                    dpdisp_ai2best = results['ai2']
+                    dpdisp_ai2epoch = epoch
+                
+                logging.info(f"Current Best Result dpdisp epe epoch {dpdisp_epeepoch}, result: {dpdisp_epebest}")
+                logging.info(f"Current Best Result dpdisp rmse epoch {dpdisp_rmseepoch}, result: {dpdisp_rmsebest}")
+                logging.info(f"Current Best Result dpdisp ai2 epoch {dpdisp_ai2epoch}, result: {dpdisp_ai2best}")
+                
+                named_results = {}
+                for k, v in results.items():
+                    named_results[f'val_dpdisp/{k}'] = v
+                
+                logger.write_dict(named_results)
 
                 model.train()
                 # model.module.freeze_bn()
 
             total_steps += 1
 
-            if total_steps > args.num_steps:
+            if total_steps > args.num_steps or (args.stop_step is not None and total_steps > args.stop_step):
                 should_keep_training = False
                 break
 
@@ -373,6 +398,7 @@ if __name__ == '__main__':
     parser.add_argument('--datasets_path', default='dd_dp_dataset_hypersim_377\\', help="training datasets.")
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")
+    parser.add_argument('--stop_step', type=int, default=None, help="training stop step(option) ")
     parser.add_argument('--input_image_num', type=int, default=2, help="batch size used during training.")
     parser.add_argument('--image_size', type=int, nargs='+', default=[448, 448], help="size of the random image crops used during training.")
     parser.add_argument('--train_iters', type=int, default=8, help="number of updates to the disparity field in each forward pass.")
@@ -404,15 +430,8 @@ if __name__ == '__main__':
     
     # Depth Anything V2
     parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-    # parser.add_argument('--dataset', default='hypersim', choices=['QPD'])
     parser.add_argument('--img-size', default=518, type=int)
-    # parser.add_argument('--min-depth', default=0.001, type=float)
-    # parser.add_argument('--max-depth', default=20, type=float)
     parser.add_argument('--epochs', default=40, type=int)
-    # parser.add_argument('--bs', default=2, type=int)
-    # parser.add_argument('--lr', default=0.000005, type=float)
-    # parser.add_argument('--pretrained-from', type=str)
-    # parser.add_argument('--save-path', type=str, required=True)
     parser.add_argument('--local-rank', default=0, type=int)
     parser.add_argument('--freeze_da_v2', action='store_true')
     parser.add_argument('--port', default=None, type=int)
@@ -425,7 +444,7 @@ if __name__ == '__main__':
 
     # Argument categorization
     da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
-    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'restore_ckpt_mono_qpd', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path'}
+    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'restore_ckpt_mono_qpd', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path', 'stop_step'}
 
     def split_arguments(args):
         args_dict = vars(args)
