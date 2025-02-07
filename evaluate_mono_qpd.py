@@ -234,8 +234,6 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
     eval_est.save_metrics()
     result = eval_est.get_mean_metrics()
-
-
     return result
 
 
@@ -274,7 +272,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
     eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['epe', 'rmse', 'ai1', 'ai2', 'ai2_bad_0_01px', 'ai2_bad_0_05px', 'ai2_bad_0_1px', 'ai2_bad_0_5px'])
 
     for val_id in tqdm(range(val_num)):
-        # if val_id == 2:
+        # if val_id == 10:
         #     break
 
         paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
@@ -315,7 +313,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
             # fitting and save
             epe = eval_est.end_point_error(flow_pr, flow_gt)
             rmse = eval_est.root_mean_squared_error(flow_pr, flow_gt)
-            bad0_1, bad0_5, bad1, bad3 = eval_est.ai2_bad_pixel_metrics(flow_pr, flow_gt)
+            ai2_bad_0_01px, ai2_bad_0_05px, ai2_bad_0_1px, ai2_bad_0_5px = eval_est.ai2_bad_pixel_metrics(flow_pr, flow_gt)
             est_ai1, est_b1 = eval_est.affine_invariant_1(flow_pr, flow_gt)
             est_ai2, est_b2 = eval_est.affine_invariant_2(flow_pr, flow_gt)
             est_ai2_fit = flow_pr * est_b2[0] + est_b2[1]
@@ -373,9 +371,9 @@ if __name__ == '__main__':
     parser.add_argument('--context_norm', type=str, default="batch", choices=['group', 'batch', 'instance', 'none'], help="normalization of context encoder")
     parser.add_argument('--slow_fast_gru', action='store_true', help="iterate the low-res GRUs more frequently")
     parser.add_argument('--n_gru_layers', type=int, default=3, help="number of hidden GRU levels")
-    parser.add_argument('--save_path', default='result/predictions/')
     parser.add_argument('--save_result', default='True')
-
+    parser.add_argument('--save_name', default='val')
+    parser.add_argument('--save_path', default='result/validations/eval.txt')
 
     # Depth Anything V2
     parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
@@ -436,9 +434,28 @@ if __name__ == '__main__':
     use_mixed_precision = args.corr_implementation.endswith("_cuda")
 
     if args.dataset == 'QPD':
-        validate_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=args.save_path)
+        result = validate_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=args.save_path)
     if args.dataset == 'Real_QPD':
-        validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
+        result = validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path)
     if args.dataset == 'MDD':
-        validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=args.save_path)
+        result = validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=args.save_result, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=args.save_path)
+
+    print(result)
+    # os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
+    # with open(args.save_path, 'a') as f:
+    #     keys = []
+    #     values = []
+    #     for k, v in result.items():
+    #         keys.append(k)
+    #         values.append(v)
+
+    #     f.write('model_name, ')
+    #     for k in keys:
+    #         f.write(f'{k}, ')
+    #     f.write('\n')
+
+    #     f.write(f'{args.save_name}, ')
+    #     for v in values:
+    #         f.write(f'{v}, ')
+    #     f.write('\n')
     

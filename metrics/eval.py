@@ -63,29 +63,34 @@ class Eval():
         return None
 
     def ai2_bad_pixel_metrics(self, Y, Target):
+        result = []
         if any(metric in self.enabled_metrics for metric in ['ai2_bad_0_1px', 'ai2_bad_0_5px', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_0_05px', 'ai2_bad_0_01px', 'ai2_bad_5px', 'ai2_bad_10px']):
             ai2, b2 = self.affine_invariant_2(Y, Target)
             if 'ai2_bad_0_01px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_0_01px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 0.01))
+                result.append(self.metrics_data['ai2_bad_0_01px'])
             if 'ai2_bad_0_05px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_0_05px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 0.05))
+                result.append(self.metrics_data['ai2_bad_0_05px'])
             if 'ai2_bad_0_1px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_0_1px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 0.1))
+                result.append(self.metrics_data['ai2_bad_0_1px'])
             if 'ai2_bad_0_5px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_0_5px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 0.5))
+                result.append(self.metrics_data['ai2_bad_0_5px'])
             if 'ai2_bad_1px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_1px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 1.0))
+                result.append(self.metrics_data['ai2_bad_1px'])
             if 'ai2_bad_3px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_3px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 3.0))
+                result.append(self.metrics_data['ai2_bad_3px'])
             if 'ai2_bad_5px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_5px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 5.0))
+                result.append(self.metrics_data['ai2_bad_5px'])
             if 'ai2_bad_10px' in self.enabled_metrics:
                 self.metrics_data['ai2_bad_10px'].append(self.bad_pixel_metric(Y*b2[0] + b2[1], Target, 10.0))
-            return (self.metrics_data.get('ai2_bad_0_01px', None), self.metrics_data.get('ai2_bad_0_05px', None), 
-                    self.metrics_data.get('ai2_bad_0_1px', None), self.metrics_data.get('ai2_bad_0_5px', None), 
-                    self.metrics_data.get('ai2_bad_1px', None), self.metrics_data.get('ai2_bad_3px', None),
-                    self.metrics_data.get('ai2_bad_5px', None), self.metrics_data.get('ai2_bad_10px', None))
-        return None, None, None, None, None, None, None, None
+                result.append(self.metrics_data['ai2_bad_10px'])
+        return result
     
     def bad_pixel_metric(self, Y, Target, threshold):
         diff = np.abs(Y - Target)
