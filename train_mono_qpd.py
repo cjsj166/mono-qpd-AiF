@@ -308,7 +308,7 @@ def train(args):
             total_steps += 1
 
             # Check before staging            
-            if True or total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
+            if total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
                 
                 model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps}_{args.name}.pth')
@@ -324,7 +324,7 @@ def train(args):
                             # ... any other states you need
                             }, model_save_path)
                 # Check before staging
-                if True or total_steps % (batch_len*10) == 0:
+                if total_steps % (batch_len*10) == 0:
                                        
                     results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path='datasets/QP-Data', save_path=save_dir)
                         
