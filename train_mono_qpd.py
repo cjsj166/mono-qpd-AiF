@@ -304,7 +304,7 @@ def train(args):
 
             total_steps += 1
 
-            # Check before staging. Delete True or
+            
             if total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
                 
@@ -321,8 +321,8 @@ def train(args):
                             # ... any other states you need
                             }, model_save_path)
 
-                # Check before staging. Delete True or
                 if total_steps % (batch_len*10) == 0:
+                                       
                     results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path='datasets/QP-Data', save_path=save_dir)
                         
                     if qpd_epebest>=results['epe']:
@@ -396,7 +396,7 @@ if __name__ == '__main__':
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=4, help="batch size used during training.")
-    parser.add_argument('--train_datasets', nargs='+', default=['QPD'], help="training datasets.")
+    parser.add_argument('--train_datasets', nargs='+', default=['QPD', 'QPD-AiF'], help="training datasets.")
     parser.add_argument('--datasets_path', default='dd_dp_dataset_hypersim_377\\', help="training datasets.")
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")
@@ -407,6 +407,7 @@ if __name__ == '__main__':
     parser.add_argument('--wdecay', type=float, default=.00001, help="Weight decay in optimizer.")
     parser.add_argument('--CAPA', default=True, help="if use Channel wise and pixel wise attention")
     
+    # parser.add_argument('--train_on_AiF', default=False, action='store_true', help="if train on AiF dataset")    
 
     # Validation parameters
     parser.add_argument('--valid_iters', type=int, default=8, help='number of flow-field updates during validation forward pass')

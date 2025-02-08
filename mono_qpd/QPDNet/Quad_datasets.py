@@ -70,7 +70,64 @@ class QuadDataset(data.Dataset):
         flow = flow * new_w / w
 
         return center_img, lrtb_list, flow, valid
+
+class QuadAiFDataset(data.Dataset):
+    def __init__(self, aug_params=None, sparse=False, reader=None, lrtb='', is_test=False, image_set = 'train'):
+        self.augmentor = None
+        self.sparse = sparse
+        self.img_pad = aug_params.pop("img_pad", None) if aug_params is not None else None
         
+        
+        if aug_params is not None and "crop_size" in aug_params:
+            if sparse:
+                self.augmentor = SparseQuadAugmentor(**aug_params)
+            else:
+                self.augmentor = QuadAugmentor(**aug_params)
+
+        self.crop_size = aug_params.pop("crop_size", None) if aug_params is not None else None
+
+        if reader is None:
+            self.disparity_reader = frame_utils.read_gen
+        else:
+            self.disparity_reader = reader        
+
+        self.is_test = is_test
+        self.init_seed = False
+        self.flow_list = []
+        self.disparity_list = []
+        self.imageAiF_list = []
+        self.image_list = []
+        self.extra_info = []
+        self.lrtb = lrtb
+        self.image_set = image_set
+        self.randomBright = RandomBrightness()
+
+    def resize_to_224_multiples(self, center_img, lrtb_list, AiF_img, flow, valid):
+        h, w = center_img.shape[-2:]
+
+        if h % 224 != 0:
+            new_h = (h // 224 + 1) * 224
+        else:
+            new_h = h
+
+        if w % 224 != 0:
+            new_w = (w // 224 + 1) * 224
+        else:
+            new_w = w
+
+        center_img = center_img.unsqueeze(0)
+        center_img = F.interpolate(center_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        lrtb_list = F.interpolate(lrtb_list, size=(new_h, new_w), mode='bilinear', align_corners=False)
+        AiF_img = F.interpolate(AiF_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        flow = F.interpolate(flow[None], size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
+        # Nearest neighbor interpolation for valid
+        valid = F.interpolate(valid[None,None].float(), size=(new_h, new_w), mode='nearest')[0,0].byte()
+
+        flow = flow * new_w / w
+
+        return center_img, lrtb_list, AiF_img, flow, valid
+
+
 
     def __getitem__(self, index):
 
@@ -78,6 +135,11 @@ class QuadDataset(data.Dataset):
             center_img = frame_utils.read_gen(self.image_list[index][0])
             center_img = np.array(center_img).astype(np.uint8)[..., :3]
             center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
+
+            AiF_img = frame_utils.read_gen(self.imageAiF_list[index])
+            AiF_img = np.array(AiF_img).astype(np.uint8)[..., :3]
+            AiF_img = torch.from_numpy(AiF_img).permute(2, 0, 1).float()
+
             img_list = []
             for i in range(1,5):
                 img = frame_utils.read_gen(self.image_list[index][i])
@@ -111,6 +173,8 @@ class QuadDataset(data.Dataset):
             img = np.array(img).astype(np.uint8)[..., :3]
             img_list.append(img)
 
+        AiF_img = frame_utils.read_gen(self.imageAiF_list[index])
+        AiF_img = np.array(AiF_img).astype(np.uint8)[..., :3]
 
         flow = np.stack([-disp, np.zeros_like(disp)], axis=-1)
 
@@ -140,6 +204,7 @@ class QuadDataset(data.Dataset):
 
         center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
         lrtb_list = torch.from_numpy(lrtb_list).permute(3, 2, 0, 1).float()
+        AiF_img = torch.from_numpy(AiF_img).permute(2, 0, 1).float()
         flow = torch.from_numpy(flow).permute(2, 0, 1).float()
 
         # if self.image_set == 'train':
@@ -155,15 +220,14 @@ class QuadDataset(data.Dataset):
         else:
             valid = (np.abs(flow[0]) < 512) & (np.abs(flow[1]) < 512)
 
-
         h, w = center_img.shape[-2:]
 
         if h%224 != 0 or w%224 != 0:
-            center_img, lrtb_list, flow, valid = self.resize_to_224_multiples(center_img, lrtb_list, flow, valid)
+            center_img, lrtb_list, AiF_img, flow, valid = self.resize_to_224_multiples(center_img, lrtb_list, AiF_img, flow, valid)
        
         flow = flow[:1]
 
-        return self.image_list[index] + [self.disparity_list[index]], center_img, lrtb_list, flow, valid.float()
+        return self.image_list[index] + [self.disparity_list[index]], center_img, lrtb_list, AiF_img, flow, valid.float()
 
     def __mul__(self, v):
         copy_of_self = copy.deepcopy(self)
@@ -185,14 +249,16 @@ class QPD(QuadDataset):
         imaget_list = sorted(glob(os.path.join(root, image_set+'_t','source', 'seq_*/*.png')))
         imageb_list = sorted(glob(os.path.join(root, image_set+'_b','source', 'seq_*/*.png')))
         imagec_list = sorted(glob(os.path.join(root, image_set+'_c','source', 'seq_*/*.png')))
+        imageAiF_list = sorted(glob(os.path.join(root, image_set+'_c','target', 'seq_*/*.png')))
         disp_list = sorted(glob(os.path.join(root, image_set+'_c','target_disp', 'seq_*/*.npy')))
 
         for idx, (imgc, imgl, imgr, imgt, imgb, disp) in enumerate(zip(imagec_list, imagel_list, imager_list, imaget_list, imageb_list, disp_list)):
             self.image_list += [ [imgc, imgl, imgr, imgt, imgb] ]
             self.disparity_list += [ disp ]
+            self.imageAiF_list += [ imageAiF_list[idx] ]
 
-        self.image_list = self.image_list
-        self.disparity_list = self.disparity_list
+        # self.image_list = self.image_list
+        # self.disparity_list = self.disparity_list
 
   
 def fetch_dataloader(args):
@@ -209,8 +275,11 @@ def fetch_dataloader(args):
     train_dataset = None
     
     for dataset_name in args.train_datasets:
+        if dataset_name.startswith("QPD-AiF"):
+            new_dataset = QuadAiFDataset(aug_params, root=args.datasets_path)
         if dataset_name.startswith("QPD"):
             new_dataset = QPD(aug_params, root=args.datasets_path)
+
         train_dataset = new_dataset if train_dataset is None else train_dataset + new_dataset
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
