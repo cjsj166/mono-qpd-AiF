@@ -245,9 +245,9 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
     aug_params = {}
     
     if path == '':
-        val_dataset = datasets.QPD(aug_params, image_set=image_set)
+        val_dataset = datasets.QPDAiF(aug_params, image_set=image_set)
     else:
-        val_dataset = datasets.QPD(aug_params, image_set=image_set, root=path)
+        val_dataset = datasets.QPDAiF(aug_params, image_set=image_set, root=path)
     
     log_dir = 'result'
     est_dir = os.path.join(log_dir, 'dp_est')
@@ -278,9 +278,10 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         # if val_id == 2:
         #     break
 
-        paths, image1, image2, flow_gt, valid_gt = val_dataset[val_id]
+        paths, image1, image2, imageAiF, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
         image2 = image2[None].cuda()
+        imageAiF = imageAiF[None].cuda()
 
         ## 4 LRTB,  2 LR
         if input_image_num == 4:
@@ -291,7 +292,7 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
         # padder = InputPadder(image1.shape, divis_by=32)
         # image1, image2 = padder.pad(image1, image2)
         with autocast(enabled=mixed_prec):
-            _, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+            _, flow_pr = model(image1, image2, imageAiF, iters=iters, test_mode=True)
 
         # Align dimensions and file format
         flow_pr = flow_pr.squeeze(0).cpu().numpy()

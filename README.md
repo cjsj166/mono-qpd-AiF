@@ -6,6 +6,16 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 pip install gradio_imageslider gradio==4.29.0 matplotlib opencv-python opt-einsum scipy scikit-image imageio tensorboard
 ```
 
+## symlink for dataset 
+```
+ln -s /mnt/d/dual-pixel-dataset/MDD_dataset MDD_dataset
+ln -s /mnt/d/Mono+Dual/QP-Data QP-Data
+```
+
+## Pretrained Depth Anything V2 model path
+download Depth Anything V2 as below path
+mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth
+
 # Disparity Estimation Using a Quad-Pixel Sensor
 [Project Page](http://www.ok.sc.e.titech.ac.jp/res/QP/index.html)
 

@@ -48,17 +48,22 @@ class MonoQPD(nn.Module):
         image = (image - mean) / std
         return image
         
-    def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False):
+    def forward(self, image1, image2, AiF_image, iters=12, flow_init=None, test_mode=False):
         h, w = image1.shape[2], image1.shape[3]
         assert h % 224 == 0 and w % 224 == 0, "Image dimensions must be multiples of 224"
-        # image1_resized = self.resize_to_14_multiples(image1)
 
-        image1_normalized = self.normalize_image(image1)
-        # enc_features, depth = self.da_v2(image1_normalized) # Original
-        int_features = self.da_v2(image1_normalized)
+        # image1_normalized = self.normalize_image(image1)
+        # int_features = self.da_v2(image1_normalized)
+        # int_features = int_features[1:]
+        # int_features = self.feature_converter(int_features)
+        # int_features = int_features[::-1] # Reverse the order of the features
+
+        AiF_normalized = self.normalize_image(AiF_image)
+        int_features = self.da_v2(AiF_normalized)
         int_features = int_features[1:]
         int_features = self.feature_converter(int_features)
         int_features = int_features[::-1] # Reverse the order of the features
+
 
         if test_mode:
             original_disp, upsampled = self.qpdnet(int_features, image1, image2, iters=iters, test_mode=test_mode, flow_init=None)

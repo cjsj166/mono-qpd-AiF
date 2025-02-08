@@ -251,7 +251,8 @@ def train(args):
     while should_keep_training:
         for i_batch, (_, *data_blob) in enumerate(tqdm(train_loader)):
             optimizer.zero_grad()
-            center_img, lrtblist, flow, valid = [x.cuda() for x in data_blob]
+            # center_img, lrtblist, flow, valid = [x.cuda() for x in data_blob]
+            center_img, lrtblist, AiF_img, flow, valid = [x.cuda() for x in data_blob]
 
             assert not torch.isnan(center_img).any(), "Invalid values in input images"
             assert not torch.isnan(lrtblist).any(), "Invalid values in input images"
@@ -259,13 +260,15 @@ def train(args):
             b,s,c,h,w = lrtblist.shape
 
             image1 = center_img.contiguous().view(b,c,h,w)
+            AiF_img = AiF_img.contiguous().view(b,c,h,w)
+
             if args.input_image_num == 4:
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1],lrtblist[:,2],lrtblist[:,3]], dim=0).contiguous()
             else:
                 image2 = torch.cat([lrtblist[:,0],lrtblist[:,1]], dim=0).contiguous()
 
             assert model.training
-            flow_predictions = model(image1, image2, iters=args.train_iters)
+            flow_predictions = model(image1, image2, AiF_img, iters=args.train_iters)
             assert model.training
             if args.input_image_num == 42:
                 rot_flow_predictions=[]
@@ -304,8 +307,8 @@ def train(args):
 
             total_steps += 1
 
-            
-            if total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
+            # Check before staging            
+            if True or total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
                 
                 model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps}_{args.name}.pth')
@@ -320,8 +323,8 @@ def train(args):
                             'total_steps': total_steps,
                             # ... any other states you need
                             }, model_save_path)
-
-                if total_steps % (batch_len*10) == 0:
+                # Check before staging
+                if True or total_steps % (batch_len*10) == 0:
                                        
                     results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path='datasets/QP-Data', save_path=save_dir)
                         
@@ -345,20 +348,6 @@ def train(args):
                     logging.info(f"Current Best Result qpd epe epoch {qpd_epeepoch}, result: {qpd_epebest}")
                     logging.info(f"Current Best Result qpd rmse epoch {qpd_rmseepoch}, result: {qpd_rmsebest}")
                     logging.info(f"Current Best Result qpd ai2 epoch {qpd_ai2epoch}, result: {qpd_ai2best}")
-
-                    results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='test', path='datasets/MDD_dataset', save_path=save_dir)
-
-                    if dpdisp_ai2best>=results['ai2']:
-                        dpdisp_ai2best = results['ai2']
-                        dpdisp_ai2epoch = epoch
-                    
-                    logging.info(f"Current Best Result dpdisp ai2 epoch {dpdisp_ai2epoch}, result: {dpdisp_ai2best}")
-                    
-                    named_results = {}
-                    for k, v in results.items():
-                        named_results[f'val_dpdisp/{k}'] = v
-                    
-                    logger.write_dict(named_results)
 
                     model.train()
                     # model.module.freeze_bn()
@@ -396,7 +385,7 @@ if __name__ == '__main__':
 
     # Training parameters
     parser.add_argument('--batch_size', type=int, default=4, help="batch size used during training.")
-    parser.add_argument('--train_datasets', nargs='+', default=['QPD', 'QPD-AiF'], help="training datasets.")
+    parser.add_argument('--train_datasets', nargs='+', default=['QPD-AiF'], help="training datasets.")
     parser.add_argument('--datasets_path', default='dd_dp_dataset_hypersim_377\\', help="training datasets.")
     parser.add_argument('--lr', type=float, default=0.0002, help="max learning rate.")
     parser.add_argument('--num_steps', type=int, default=200000, help="length of training schedule.")

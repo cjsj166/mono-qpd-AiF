@@ -95,7 +95,6 @@ class QuadAiFDataset(data.Dataset):
         self.init_seed = False
         self.flow_list = []
         self.disparity_list = []
-        self.imageAiF_list = []
         self.image_list = []
         self.extra_info = []
         self.lrtb = lrtb
@@ -116,6 +115,7 @@ class QuadAiFDataset(data.Dataset):
             new_w = w
 
         center_img = center_img.unsqueeze(0)
+        AiF_img = AiF_img.unsqueeze(0)
         center_img = F.interpolate(center_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
         lrtb_list = F.interpolate(lrtb_list, size=(new_h, new_w), mode='bilinear', align_corners=False)
         AiF_img = F.interpolate(AiF_img, size=(new_h, new_w), mode='bilinear', align_corners=False)[0]
@@ -136,12 +136,8 @@ class QuadAiFDataset(data.Dataset):
             center_img = np.array(center_img).astype(np.uint8)[..., :3]
             center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
 
-            AiF_img = frame_utils.read_gen(self.imageAiF_list[index])
-            AiF_img = np.array(AiF_img).astype(np.uint8)[..., :3]
-            AiF_img = torch.from_numpy(AiF_img).permute(2, 0, 1).float()
-
             img_list = []
-            for i in range(1,5):
+            for i in range(1,6):
                 img = frame_utils.read_gen(self.image_list[index][i])
                 img = np.array(img).astype(np.uint8)[..., :3]
                 img = torch.from_numpy(img).permute(2, 0, 1).float()
@@ -167,14 +163,11 @@ class QuadAiFDataset(data.Dataset):
             valid = disp < 512
 
         img_list = []
-        for i in range(0,5):
+        for i in range(0,6):
             
             img = frame_utils.read_gen(self.image_list[index][i])
             img = np.array(img).astype(np.uint8)[..., :3]
             img_list.append(img)
-
-        AiF_img = frame_utils.read_gen(self.imageAiF_list[index])
-        AiF_img = np.array(AiF_img).astype(np.uint8)[..., :3]
 
         flow = np.stack([-disp, np.zeros_like(disp)], axis=-1)
 
@@ -196,11 +189,12 @@ class QuadAiFDataset(data.Dataset):
 
         lrtb_list = []
         center_img = img_list[0]
-        for i in range(1,5):
+        for i in range(1,6):
             lrtb = img_list[i]
             lrtb_list.append(lrtb)
 
-        lrtb_list = np.stack(lrtb_list, axis=-1)
+        AiF_img = img_list[-1]
+        lrtb_list = np.stack(lrtb_list[:-1], axis=-1)
 
         center_img = torch.from_numpy(center_img).permute(2, 0, 1).float()
         lrtb_list = torch.from_numpy(lrtb_list).permute(3, 2, 0, 1).float()
@@ -249,20 +243,33 @@ class QPD(QuadDataset):
         imaget_list = sorted(glob(os.path.join(root, image_set+'_t','source', 'seq_*/*.png')))
         imageb_list = sorted(glob(os.path.join(root, image_set+'_b','source', 'seq_*/*.png')))
         imagec_list = sorted(glob(os.path.join(root, image_set+'_c','source', 'seq_*/*.png')))
-        imageAiF_list = sorted(glob(os.path.join(root, image_set+'_c','target', 'seq_*/*.png')))
         disp_list = sorted(glob(os.path.join(root, image_set+'_c','target_disp', 'seq_*/*.npy')))
 
         for idx, (imgc, imgl, imgr, imgt, imgb, disp) in enumerate(zip(imagec_list, imagel_list, imager_list, imaget_list, imageb_list, disp_list)):
             self.image_list += [ [imgc, imgl, imgr, imgt, imgb] ]
             self.disparity_list += [ disp ]
-            self.imageAiF_list += [ imageAiF_list[idx] ]
 
         # self.image_list = self.image_list
         # self.disparity_list = self.disparity_list
 
+class QPDAiF(QuadAiFDataset):
+    def __init__(self, aug_params=None, root='', image_set='train'):
+        super(QPDAiF, self).__init__(aug_params, sparse=False, lrtb='', image_set = image_set)
+        assert os.path.exists(root)
+        imagel_list = sorted(glob(os.path.join(root, image_set+'_l','source', 'seq_*/*.png')))
+        imager_list = sorted(glob(os.path.join(root, image_set+'_r','source', 'seq_*/*.png')))
+        imaget_list = sorted(glob(os.path.join(root, image_set+'_t','source', 'seq_*/*.png')))
+        imageb_list = sorted(glob(os.path.join(root, image_set+'_b','source', 'seq_*/*.png')))
+        imagec_list = sorted(glob(os.path.join(root, image_set+'_c','source', 'seq_*/*.png')))
+        imageAiF_list = sorted(glob(os.path.join(root, image_set+'_c','target', 'seq_*/*.png')))
+        disp_list = sorted(glob(os.path.join(root, image_set+'_c','target_disp', 'seq_*/*.npy')))
+
+        for idx, (imgc, imgl, imgr, imgt, imgb, imgAiF, disp) in enumerate(zip(imagec_list, imagel_list, imager_list, imaget_list, imageb_list, imageAiF_list, disp_list)):
+            self.image_list += [ [imgc, imgl, imgr, imgt, imgb, imgAiF] ]
+            self.disparity_list += [ disp ]
   
-def fetch_dataloader(args):
     """ Create the data loader for the corresponding trainign set """
+def fetch_dataloader(args):
 
     aug_params = {'crop_size': args.image_size, 'min_scale': args.spatial_scale[0], 'max_scale': args.spatial_scale[1], 'do_flip': False, 'yjitter': not args.noyjitter}
     if hasattr(args, "saturation_range") and args.saturation_range is not None:
@@ -276,8 +283,8 @@ def fetch_dataloader(args):
     
     for dataset_name in args.train_datasets:
         if dataset_name.startswith("QPD-AiF"):
-            new_dataset = QuadAiFDataset(aug_params, root=args.datasets_path)
-        if dataset_name.startswith("QPD"):
+            new_dataset = QPDAiF(aug_params, root=args.datasets_path)
+        elif dataset_name.startswith("QPD"):
             new_dataset = QPD(aug_params, root=args.datasets_path)
 
         train_dataset = new_dataset if train_dataset is None else train_dataset + new_dataset
