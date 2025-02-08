@@ -7,13 +7,17 @@ pip install gradio_imageslider gradio==4.29.0 matplotlib opencv-python opt-einsu
 ```
 
 ## symlink for dataset 
+First, make datasets directory
 ```
-ln -s /mnt/d/dual-pixel-dataset/MDD_dataset MDD_dataset
-ln -s /mnt/d/Mono+Dual/QP-Data QP-Data
+ln -s /mnt/d/dual-pixel-dataset/MDD_dataset datasets/MDD_dataset
+ln -s /mnt/d/Mono+Dual/QP-Data datasets/QP-Data
 ```
 
 ## Pretrained Depth Anything V2 model path
-download Depth Anything V2 as below path
+Make checkpoints directory in mono_qpd/Depth_Anything_v2/
+
+download Depth Anything V2 into the directory.
+
 mono_qpd/Depth_Anything_V2/checkpoints/depth_anything_v2_vitl.pth
 
 # Disparity Estimation Using a Quad-Pixel Sensor
