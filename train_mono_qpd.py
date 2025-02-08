@@ -189,9 +189,10 @@ def train(args):
         model.cuda()
 
         optimizer, scheduler = fetch_optimizer(args, model, -1)
-    
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        scheduler.load_state_dict(ckpt['scheduler_state_dict'])
+
+        if not args.initialize_scheduler:
+            optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+            scheduler.load_state_dict(ckpt['scheduler_state_dict'])
     else:
         total_steps = 0
         optimizer, scheduler = fetch_optimizer(args, model, -1)
@@ -303,7 +304,8 @@ def train(args):
 
             total_steps += 1
 
-            if total_steps % batch_len == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
+            # Check before staging. Delete True or
+            if total_steps % (batch_len*5) == 0  or total_steps==1 or (args.stop_step is not None and total_steps >= args.stop_step):# and total_steps != 0:
                 epoch = int(total_steps/batch_len)
                 
                 model_save_path = os.path.join(args.save_path, timestamp, 'checkpoints', f'{epoch}_epoch_{total_steps}_{args.name}.pth')
@@ -318,9 +320,10 @@ def train(args):
                             'total_steps': total_steps,
                             # ... any other states you need
                             }, model_save_path)
-                
-                if total_steps % (batch_len*1) == 0:
-                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+
+                # Check before staging. Delete True or
+                if total_steps % (batch_len*10) == 0:
+                    results = validate_QPD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path='datasets/QP-Data', save_path=save_dir)
                         
                     if qpd_epebest>=results['epe']:
                         qpd_epebest = results['epe']
@@ -343,15 +346,12 @@ def train(args):
                     logging.info(f"Current Best Result qpd rmse epoch {qpd_rmseepoch}, result: {qpd_rmsebest}")
                     logging.info(f"Current Best Result qpd ai2 epoch {qpd_ai2epoch}, result: {qpd_ai2best}")
 
-                    results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='validation', path=args.datasets_path, save_path=save_dir)
+                    results = validate_MDD(model.module, iters=args.valid_iters, save_result=False, val_save_skip=30, input_image_num=args.input_image_num, image_set='test', path='datasets/MDD_dataset', save_path=save_dir)
 
-                    
                     if dpdisp_ai2best>=results['ai2']:
                         dpdisp_ai2best = results['ai2']
                         dpdisp_ai2epoch = epoch
                     
-                    logging.info(f"Current Best Result dpdisp epe epoch {dpdisp_epeepoch}, result: {dpdisp_epebest}")
-                    logging.info(f"Current Best Result dpdisp rmse epoch {dpdisp_rmseepoch}, result: {dpdisp_rmsebest}")
                     logging.info(f"Current Best Result dpdisp ai2 epoch {dpdisp_ai2epoch}, result: {dpdisp_ai2best}")
                     
                     named_results = {}
@@ -389,6 +389,8 @@ if __name__ == '__main__':
     parser.add_argument('--restore_ckpt_da_v2', default=None, help="restore checkpoint")
     parser.add_argument('--restore_ckpt_qpd_net', default=None, help="restore checkpoint")
     parser.add_argument('--restore_ckpt_mono_qpd', default=None, help="restore checkpoint")
+
+    parser.add_argument('--initialize_scheduler', default=False, action='store_true', help='initialize the scheduler')
 
     parser.add_argument('--mixed_precision', default=False, action='store_true', help='use mixed precision')
 
@@ -444,7 +446,7 @@ if __name__ == '__main__':
 
     # Argument categorization
     da_v2_keys = {'encoder', 'img-size', 'epochs', 'local-rank', 'port', 'restore_ckpt_da_v2', 'freeze_da_v2'}
-    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'restore_ckpt_mono_qpd', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path', 'stop_step'}
+    else_keys = {'name', 'restore_ckpt_da_v2', 'restore_ckpt_qpd_net', 'restore_ckpt_mono_qpd', 'mixed_precision', 'batch_size', 'train_datasets', 'datasets_path', 'lr', 'num_steps', 'input_image_num', 'image_size', 'train_iters', 'wdecay', 'CAPA', 'valid_iters', 'corr_implementation', 'shared_backbone', 'corr_levels', 'corr_radius', 'n_downsample', 'context_norm', 'slow_fast_gru', 'n_gru_layers', 'hidden_dims', 'img_gamma', 'saturation_range', 'do_flip', 'spatial_scale', 'noyjitter', 'feature_converter', 'save_path', 'stop_step', 'initialize_scheduler'}
 
     def split_arguments(args):
         args_dict = vars(args)

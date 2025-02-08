@@ -82,7 +82,10 @@
                 "--feature_converter",
                 "conv",
                 "--stop_step",
-                "200"
+                "120",
+                "--initialize_scheduler",
+                // "--lr",
+
             ]
         },
 
