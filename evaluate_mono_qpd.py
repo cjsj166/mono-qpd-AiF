@@ -165,7 +165,7 @@ def validate_MDD(model, input_image_num, iters=32, mixed_prec=False, save_result
     if val_num==None:
         val_num = len(val_dataset)
 
-    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['ai1', 'ai2', 'ai2_bad_0_5px', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_5px', 'ai2_bad_10px'])
+    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['ai1', 'ai2', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_5px', 'ai2_bad_10px', 'ai2_bad_15px'])
 
     for val_id in tqdm(range(val_num)):
         # Check before staging
@@ -270,7 +270,8 @@ def validate_QPD(model, input_image_num, iters=32, mixed_prec=False, save_result
 
     path = os.path.basename(os.path.dirname(path))
 
-    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['epe', 'rmse', 'ai1', 'ai2', 'ai2_bad_0_01px', 'ai2_bad_0_05px', 'ai2_bad_0_1px', 'ai2_bad_0_5px', 'ai2_bad_1px', 'ai2_bad_3px', 'ai2_bad_3px'])
+    # ai2_bad_0_005px ~ ai2_bad_15px
+    eval_est = Eval(os.path.join(save_path, 'center'), enabled_metrics=['epe', 'rmse', 'ai1', 'ai2', 'ai2_bad_0_005px', 'ai2_bad_0_01px', 'ai2_bad_0_05px', 'ai2_bad_0_1px', 'ai2_bad_0_5px', 'ai2_bad_1px'])
     
 
     for val_id in tqdm(range(val_num)):
