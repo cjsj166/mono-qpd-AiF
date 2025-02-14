@@ -174,7 +174,7 @@
                 "--train_dir",
                 "result/train/20250209_024242_exp3_125epochs/",
                 "--datasets",
-                "QPD-AiF",
+                "QPD-AiF-Valid",
                 "--save_path",
                 "result/eval/conv/exp3-eval-test/",
                 "--feature_converter",
