@@ -95,12 +95,12 @@ if __name__ == '__main__':
             result = validate_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=False, input_image_num = args.input_image_num, image_set="test", path='datasets/QP-Data', save_path=save_path)
         if 'MDD' in args.datasets:
             save_path = os.path.join(args.save_path, 'dp-disp', os.path.basename(restore_ckpt).replace('.pth', ''))
-            result = validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=False, input_image_num = args.input_image_num, image_set="test", path='datasets/MDD_Dataset', save_path=save_path)
+            result = validate_MDD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=False, input_image_num = args.input_image_num, image_set="test", path='datasets/MDD_dataset', save_path=save_path)
         if 'Real_QPD' in args.datasets:
             save_path = os.path.join(args.save_path, 'real-qpd-test', os.path.basename(restore_ckpt).replace('.pth', ''))
             result = validate_Real_QPD(model, iters=args.valid_iters, mixed_prec=use_mixed_precision, save_result=False, input_image_num = args.input_image_num, image_set="test", path=args.datasets_path, save_path=save_path)
 
-        # print(result)
+        print(result)
 
 
 
